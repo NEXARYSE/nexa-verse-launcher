@@ -1,5 +1,6 @@
 name: Build and publish launcher updates
 
+# v0.5.22 release build for the updated controller navigation and countdown.
 on:
   push:
     branches:
