@@ -13,6 +13,7 @@ let socialState={status:'signedOut',friends:[]};
 let socialAuthFile;
 let discordRpcSocket=null, discordRpcBuffer=Buffer.alloc(0), discordRpcRetry=null, discordRpcReady=false, discordActivityEnabled=true;
 const DISCORD_APPLICATION_ID='1568756074692083925';
+function isGtaViExecutable(value){return ['gta6.exe','gta vi.exe','gtavi.exe'].includes(path.basename(value).toLowerCase());}
 const launcherStartedAt=Math.floor(Date.now()/1000);
 
 function rpcFrame(opcode,payload){
@@ -112,6 +113,25 @@ app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1050, minHeight: 720, backgroundColor: '#080b18', title: 'NEXA VERSE LAUNCHER', icon:path.join(__dirname,'nexa-icon.ico'), autoHideMenuBar: true,
     webPreferences: { preload: require('node:path').join(__dirname,'preload.cjs'), nodeIntegration: false, contextIsolation: true, partition:'persist:nexa-verse-launcher' } });
   ipcMain.handle('pick-folder', async () => { const result=await dialog.showOpenDialog(win,{properties:['openDirectory']}); return result.canceled ? null : result.filePaths[0]; });
+  ipcMain.handle('pick-game-application', async () => {
+    const result=await dialog.showOpenDialog(win,{title:'Select your GTA VI application',properties:['openFile'],filters:[{name:'GTA VI application',extensions:['exe']}]});
+    if(result.canceled||!result.filePaths[0])return null;
+    const executable=path.resolve(result.filePaths[0]);
+    if(!isGtaViExecutable(executable))throw new Error('Choose an application named GTA6.exe, GTA VI.exe, or GTAVI.exe.');
+    return executable;
+  });
+  ipcMain.handle('launch-game', async (_, value) => {
+    if(typeof value!=='string')return {ok:false,error:'Link a GTA VI application first.'};
+    const executable=path.resolve(value);
+    if(!isGtaViExecutable(executable))return {ok:false,error:'Only GTA6.exe, GTA VI.exe, or GTAVI.exe can be launched.'};
+    try{const stat=await fs.promises.stat(executable);if(!stat.isFile())return {ok:false,error:'The linked GTA VI application is unavailable.'};}
+    catch{return {ok:false,error:'The linked GTA VI application was not found. Link it again in Settings.'};}
+    return await new Promise(resolve=>{
+      const child=spawn(executable,[],{cwd:path.dirname(executable),detached:true,stdio:'ignore',windowsHide:false});
+      child.once('spawn',()=>{child.unref();resolve({ok:true})});
+      child.once('error',error=>resolve({ok:false,error:`Could not start GTA VI: ${error.message}`}));
+    });
+  });
   ipcMain.handle('launch-ds4windows', async () => {
     const result=await dialog.showOpenDialog(win,{title:'Select DS4Windows.exe',properties:['openFile'],filters:[{name:'DS4Windows',extensions:['exe']}]});
     if(result.canceled||!result.filePaths[0])return {canceled:true};
@@ -168,4 +188,5 @@ app.whenReady().then(async () => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => {isQuitting=true;clearTimeout(discordRpcRetry);setDiscordActivity(false);setTimeout(()=>discordRpcSocket?.destroy(),100);server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
+
 

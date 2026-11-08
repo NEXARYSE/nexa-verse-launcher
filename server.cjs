@@ -187,7 +187,7 @@ function startServer(port=4317, storage={}) {
         const sid=cookies(req).nv_session,session=sessions.get(sid);if(!session)return send(res,403,JSON.stringify({error:'Link Discord and join the Nexa Verse server before playing.'}));
         let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch(error){return send(res,503,JSON.stringify({error:error.message||'Could not verify server membership. Try again shortly.',needsConsent:error.consentRequired===true,reauthRequired:error.reauthRequired===true}));}
         if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server to access the launcher.'}));
-        return send(res,200,JSON.stringify({ok:true,message:'Discord linked and Nexa Verse membership verified. Configure the game launch command to start playing.'}));
+        return send(res,200,JSON.stringify({ok:true,message:'Discord linked and Nexa Verse membership verified. Starting your linked GTA VI application.'}));
       }
       const rel=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1)),file=path.resolve(ROOT,rel);
       if(!file.startsWith(ROOT+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(res,404,'Not found','text/plain');
@@ -198,4 +198,5 @@ function startServer(port=4317, storage={}) {
 }
 if(require.main===module)startServer(Number(process.env.PORT)||4317).then(()=>console.log('Nexa Verse at http://127.0.0.1:4317'));
 module.exports={startServer};
+
 
