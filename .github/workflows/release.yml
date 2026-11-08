@@ -2,6 +2,8 @@ name: Build and publish launcher updates
 
 on:
   push:
+    branches:
+      - 'publish/v*'
     tags:
       - 'v*'
 
