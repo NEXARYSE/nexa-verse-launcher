@@ -82,12 +82,12 @@ window.launcher?.getSocialState().then(applySocialState).catch(()=>{});
 const soundtrack=[
   {file:'/music/gta6-theme.mp3',name:'GTA 6 Official Theme'},
   {file:'/music/captain-tennille-dream.mp3',name:'But I Think It’s a Dream — Captain & Tennille'},
-  {file:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.10/se-me-nota.mp3',name:'Se Me Nota (Agarrame) — Chimbala x Omega'},
-  {file:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.10/bright-lights-big-city.mp3',name:'Bright Lights, Big City — Keith Richards'}
+  {file:'/music/se-me-nota.mp3',name:'Se Me Nota (Agarrame) — Chimbala x Omega'},
+  {file:'/music/bright-lights-big-city.mp3',name:'Bright Lights, Big City — Keith Richards'}
 ];
 const musicAudio=$('#musicAudio'),musicToggle=$('#musicToggle'),musicStatus=$('#musicStatus'),musicVolume=$('#musicVolume'),musicVolumeValue=$('#musicVolumeValue'),currentTrackName=$('#currentTrackName');
 let currentTrackIndex=0;
-const savedVolumeRaw=localStorage.getItem('nv_music_volume'),savedVolume=savedVolumeRaw===null?35:Number(savedVolumeRaw);
+const savedVolumeRaw=localStorage.getItem('nv_music_volume'),savedVolume=savedVolumeRaw===null?10:Number(savedVolumeRaw);
 if(Number.isFinite(savedVolume)&&savedVolume>=0&&savedVolume<=100)musicVolume.value=String(savedVolume);
 function renderTrack(){const track=soundtrack[currentTrackIndex];currentTrackName.textContent=track.name;currentTrackName.title=track.name;musicAudio.src=track.file;musicAudio.load()}
 function setMusicStatus(text){musicStatus.textContent=text}
@@ -101,5 +101,4 @@ musicAudio.addEventListener('error',()=>{musicToggle.textContent='Play';musicTog
 musicAudio.addEventListener('play',()=>{musicToggle.textContent='Pause';musicToggle.setAttribute('aria-label','Pause music');setMusicStatus('Now playing')});
 musicAudio.addEventListener('pause',()=>{musicToggle.textContent='Play';musicToggle.setAttribute('aria-label','Play music');if(!musicAudio.ended)setMusicStatus('Paused')});
 renderTrack();playMusic();
-
 
