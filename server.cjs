@@ -15,7 +15,7 @@ let PRESENCE_SERVICE_URL=process.env.NV_PRESENCE_SERVICE_URL||'';
 if(!PRESENCE_SERVICE_URL){try{PRESENCE_SERVICE_URL=JSON.parse(fs.readFileSync(path.join(__dirname,'presence-service.json'),'utf8')).url||''}catch{}}
 let roleMetadataFetchedAt=0,roleMetadataLoad=null;
 const sessions = new Map(), pending = new Map(), activeLaunchers = new Map(), tokenRefreshes = new WeakMap();
-const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.avif':'image/avif', '.webp':'image/webp' };
+const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.avif':'image/avif', '.webp':'image/webp', '.mp3':'audio/mpeg' };
 function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').map(x => x.trim().split('=').map(decodeURIComponent)).filter(x => x.length === 2)); }
 function send(res, code, body, type='application/json; charset=utf-8', headers={}) { res.writeHead(code, { 'Content-Type': type, 'Cache-Control':'no-store', ...headers }); res.end(body); }
 function page(message, invite) {

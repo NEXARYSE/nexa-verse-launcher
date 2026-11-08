@@ -7,6 +7,7 @@ const { spawn } = require('node:child_process');
 const readline = require('node:readline');
 const net = require('node:net');
 const crypto = require('node:crypto');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 let server, win, socialBridge, isQuitting=false;
 let socialState={status:'signedOut',friends:[]};
 let socialAuthFile;
