@@ -28,7 +28,7 @@ npm install
 npm run dist:win
 ```
 
-`dist/win-unpacked` contains the app runtime. The single downloadable `NEXA VERSE LAUNCHER.exe` is an NSIS installer; users install it once. The launcher checks GitHub Releases at startup and downloads updates in the background. It installs a downloaded update when the user restarts or exits the launcher, so players do not need to find and run a new installer. The installer is unsigned. The role metadata service can be hosted alongside releases. A public GitHub repository is required so every launcher can read releases without user credentials. See `RELEASING.md` for the release workflow.
+`dist/win-unpacked` contains the app runtime. The single downloadable `NEXAVERSE LAUNCHER.exe` is an NSIS installer; users install it once. The launcher checks GitHub Releases at startup and downloads updates in the background. It installs a downloaded update when the user restarts or exits the launcher, so players do not need to find and run a new installer. The installer is unsigned. The role metadata service can be hosted alongside releases. A public GitHub repository is required so every launcher can read releases without user credentials. See `RELEASING.md` for the release workflow.
 
 ## Connected launcher count
 
@@ -36,4 +36,4 @@ The home card now counts verified Discord members with a fresh heartbeat connect
 
 ## Controller icon
 
-The controller card defaults to the supplied mouse image and switches to DualShock 4, DualSense, or Xbox artwork based on the Gamepad API device identifier. Unknown gamepads use a generic outline icon.
+The controller card defaults to the supplied mouse image and switches to DualShock 4, DualSense, Xbox, or SCUF artwork based on the Windows Gamepad API identifier. DGM20 USB Microphone and gamepad identifiers containing USB microphone are shown as SCUF Controller. The DS4 button lets the player select and open a local DS4Windows.exe; controllers exposed by its virtual gamepad are detected by the launcher. DS4Windows and its driver dependencies are not redistributed inside the launcher. Unknown gamepads use a generic outline icon.
