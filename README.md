@@ -37,3 +37,7 @@ The home card now counts verified Discord members with a fresh heartbeat connect
 ## Controller icon
 
 The controller card defaults to the supplied mouse image and switches to DualShock 4, DualSense, or Xbox artwork based on the Gamepad API device identifier. Unknown gamepads use a generic outline icon.
+
+## Release 0.4.0
+
+The Friends page keeps the Discord connection banner visible while the friend cards scroll in their own bounded area, preventing the list from overlapping the banner or running past the launcher window.
