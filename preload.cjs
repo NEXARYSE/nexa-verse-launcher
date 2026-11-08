@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('launcher', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   pickGameApplication: () => ipcRenderer.invoke('pick-game-application'),
   launchGame: executable => ipcRenderer.invoke('launch-game', executable),
+  isGameRunning: () => ipcRenderer.invoke('game-running'),
   launchDS4Windows: () => ipcRenderer.invoke('launch-ds4windows'),
   openExternal: url => ipcRenderer.invoke('open-external',url),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
@@ -15,6 +16,5 @@ contextBridge.exposeInMainWorld('launcher', {
   installUpdate: () => ipcRenderer.send('install-update'),
   onUpdateStatus: callback => ipcRenderer.on('update-status',(_,data)=>callback(data)),
 });
-
 
 

@@ -4,5 +4,7 @@ dist/
 .electron-builder-cache/
 .pnpm-store/
 .tmp/
+.wrangler/
+.wrangler-config/
 *.obj
 NEXA VERSE LAUNCHER.exe

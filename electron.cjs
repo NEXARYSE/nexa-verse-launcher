@@ -109,7 +109,9 @@ app.whenReady().then(async () => {
     clear(){try{fs.rmSync(authFile,{force:true})}catch{}}
   };
   server = await startServer(4317,storage);
+  let trackedGameActive=false;
   ipcMain.handle('app-version',()=>app.getVersion());
+  ipcMain.handle('game-running',()=>trackedGameActive);
   win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1050, minHeight: 720, backgroundColor: '#080b18', title: 'NEXA VERSE LAUNCHER', icon:path.join(__dirname,'nexa-icon.ico'), autoHideMenuBar: true,
     webPreferences: { preload: require('node:path').join(__dirname,'preload.cjs'), nodeIntegration: false, contextIsolation: true, partition:'persist:nexa-verse-launcher' } });
   ipcMain.handle('pick-folder', async () => { const result=await dialog.showOpenDialog(win,{properties:['openDirectory']}); return result.canceled ? null : result.filePaths[0]; });
@@ -128,7 +130,7 @@ app.whenReady().then(async () => {
     catch{return {ok:false,error:'The linked GTA VI application was not found. Link it again in Settings.'};}
     return await new Promise(resolve=>{
       const child=spawn(executable,[],{cwd:path.dirname(executable),detached:true,stdio:'ignore',windowsHide:false});
-      child.once('spawn',()=>{child.unref();resolve({ok:true})});
+      child.once('spawn',()=>{trackedGameActive=true;child.once('exit',()=>{trackedGameActive=false});child.unref();resolve({ok:true})});
       child.once('error',error=>resolve({ok:false,error:`Could not start GTA VI: ${error.message}`}));
     });
   });
@@ -188,5 +190,4 @@ app.whenReady().then(async () => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => {isQuitting=true;clearTimeout(discordRpcRetry);setDiscordActivity(false);setTimeout(()=>discordRpcSocket?.destroy(),100);server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
-
 

@@ -1,6 +1,6 @@
 {
   "name": "nexa-verse-launcher",
-  "version": "0.5.23",
+  "version": "0.5.24",
   "private": true,
   "description": "Nexa Verse PC launcher official build",
   "repository": {
@@ -63,6 +63,5 @@
     ]
   }
 }
-
 
 

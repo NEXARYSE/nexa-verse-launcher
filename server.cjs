@@ -183,6 +183,39 @@ function startServer(port=4317, storage={}) {
         if(session?.refreshToken){const form=new URLSearchParams({client_id:CLIENT_ID,token:session.refreshToken,token_type_hint:'refresh_token'});fetch('https://discord.com/api/oauth2/token/revoke',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:form}).catch(()=>{});}
         return send(res,200,'{}','application/json; charset=utf-8',{'Set-Cookie':'nv_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'});
       }
+      if(url.pathname==='/api/leaderboard'&&(req.method==='POST'||req.method==='GET')){
+        if(req.headers.origin&&req.headers.origin!==`http://127.0.0.1:${port}`)return send(res,403,JSON.stringify({error:'Origin rejected.'}));
+        const sid=cookies(req).nv_session,session=sessions.get(sid);
+        if(!session)return send(res,403,JSON.stringify({error:'Link Discord before viewing the leaderboard.'}));
+        let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch(error){return send(res,503,JSON.stringify({error:error.message||'Could not verify Nexa Verse membership.'}));}
+        if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server to use the leaderboard.'}));
+        if(!PRESENCE_SERVICE_URL)return send(res,503,JSON.stringify({error:'Shared leaderboard service is not configured.'}));
+        let raw='';if(req.method==='POST'){for await(const chunk of req){raw+=chunk.toString();if(raw.length>4096)return send(res,413,JSON.stringify({error:'Request too large.'}));}}
+        let body={};if(req.method==='POST'){try{body=raw?JSON.parse(raw):{}}catch{return send(res,400,JSON.stringify({error:'Invalid leaderboard data.'}));}}
+        const stats={playtimeSeconds:Number(body.playtimeSeconds)||0,trophiesEarned:Number(body.trophiesEarned)||0,completionPercent:Number(body.completionPercent)||0};
+        if(req.method==='POST'&&(!Number.isSafeInteger(stats.playtimeSeconds)||stats.playtimeSeconds<0||stats.playtimeSeconds>315360000||!Number.isSafeInteger(stats.trophiesEarned)||stats.trophiesEarned<0||stats.trophiesEarned>55||!Number.isFinite(stats.completionPercent)||stats.completionPercent<0||stats.completionPercent>100))return send(res,400,JSON.stringify({error:'Leaderboard stats are outside allowed ranges.'}));
+        try{
+          const response=await fetch(new URL('/api/leaderboard',PRESENCE_SERVICE_URL),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:req.method==='GET'?'list':'update',accessToken:session.accessToken,...stats}),signal:AbortSignal.timeout(12000)});
+          const result=await response.json().catch(()=>({error:'Leaderboard service returned an invalid response.'}));return send(res,response.status,JSON.stringify(result));
+        }catch{return send(res,503,JSON.stringify({error:'Leaderboard service is temporarily unavailable.'}));}
+      }
+      if((url.pathname==='/api/modpack/status'||url.pathname==='/api/modpack/redeem')&&req.method==='POST'){
+        if(req.headers.origin&&req.headers.origin!==`http://127.0.0.1:${port}`)return send(res,403,JSON.stringify({error:'Origin rejected.'}));
+        const sid=cookies(req).nv_session,session=sessions.get(sid);
+        if(!session)return send(res,403,JSON.stringify({error:'Link Discord before checking Modpack access.'}));
+        let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch(error){return send(res,503,JSON.stringify({error:error.message||'Could not verify Nexa Verse membership.'}));}
+        if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server before redeeming a Modpack code.'}));
+        if(!PRESENCE_SERVICE_URL)return send(res,503,JSON.stringify({error:'Shared Modpack redemption service is not configured.'}));
+        let raw='';for await(const chunk of req){raw+=chunk.toString();if(raw.length>4096)return send(res,413,JSON.stringify({error:'Request too large.'}));}
+        let body={};try{body=raw?JSON.parse(raw):{}}catch{return send(res,400,JSON.stringify({error:'Invalid request.'}));}
+        const endpoint=url.pathname.endsWith('/status')?'/api/modpack/status':'/api/modpack/redeem';
+        if(endpoint.endsWith('/redeem')&&(typeof body.code!=='string'||!/^\d{8}$/.test(body.code)))return send(res,400,JSON.stringify({error:'Enter an 8 digit code.'}));
+        try{
+          const response=await fetch(new URL(endpoint,PRESENCE_SERVICE_URL),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accessToken:session.accessToken,...(endpoint.endsWith('/redeem')?{code:body.code}:{})}),signal:AbortSignal.timeout(12000)});
+          const result=await response.json().catch(()=>({error:'Modpack redemption service returned an invalid response.'}));
+          return send(res,response.status,JSON.stringify(result));
+        }catch{return send(res,503,JSON.stringify({error:'Modpack redemption service is temporarily unavailable.'}));}
+      }
       if(url.pathname==='/api/play'){
         const sid=cookies(req).nv_session,session=sessions.get(sid);if(!session)return send(res,403,JSON.stringify({error:'Link Discord and join the Nexa Verse server before playing.'}));
         let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch(error){return send(res,503,JSON.stringify({error:error.message||'Could not verify server membership. Try again shortly.',needsConsent:error.consentRequired===true,reauthRequired:error.reauthRequired===true}));}
@@ -198,5 +231,4 @@ function startServer(port=4317, storage={}) {
 }
 if(require.main===module)startServer(Number(process.env.PORT)||4317).then(()=>console.log('Nexa Verse at http://127.0.0.1:4317'));
 module.exports={startServer};
-
 
