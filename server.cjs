@@ -48,11 +48,21 @@ async function refreshIfNeeded(session, persist, force=false) {
 async function memberCheck(session, persist, force=false) {
   await refreshIfNeeded(session,persist);
   if (!force && Date.now()-session.checkedAt < 30000) return session.member;
-  let response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});
-  if(response.status===401){await refreshIfNeeded(session,persist,true);response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});}
+  let response;
+  try{
+    response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});
+    if(response.status===401){await refreshIfNeeded(session,persist,true);response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});}
+  }catch(error){
+    const verifiedAt=Number(session.memberVerifiedAt||(session.member===true?session.checkedAt:0));
+    if(session.member===true&&verifiedAt&&Date.now()-verifiedAt<24*60*60*1000){console.warn(`Discord membership check failed; using the last successful check (${error.message})`);return true;}
+    throw error;
+  }
   session.checkedAt=Date.now();
-  if(response.ok){const details=await response.json();session.roleIds=Array.isArray(details.roles)?details.roles:[];session.member=true;persist?.();return true;}
-  if(response.status===404)return session.member=false;
+  if(response.ok){const details=await response.json();session.roleIds=Array.isArray(details.roles)?details.roles:[];session.member=true;session.memberVerifiedAt=Date.now();persist?.();return true;}
+  if(response.status===404){session.member=false;session.memberVerifiedAt=0;persist?.();return false;}
+  if(response.status===403){session.member=null;session.memberVerifiedAt=0;persist?.();const error=new Error('Discord did not grant permission to check server membership. Refresh Discord permissions to continue.');error.consentRequired=true;throw error;}
+  if(response.status===401){session.member=null;session.memberVerifiedAt=0;persist?.();const error=new Error('Discord authorization expired. Reconnect your Discord account.');error.reauthRequired=true;throw error;}
+  if(response.status===429||response.status>=500){const verifiedAt=Number(session.memberVerifiedAt||0);if(session.member===true&&verifiedAt&&Date.now()-verifiedAt<24*60*60*1000){console.warn(`Discord membership API returned HTTP ${response.status}; using the last successful check.`);return true;}}
   throw new Error(`Membership check failed (${response.status})`);
 }
 function normalizeRoleMetadata(data){
@@ -115,7 +125,7 @@ function startServer(port=4317, storage={}) {
     }catch(error){console.warn(`Shared Nexa Verse presence could not connect: ${error.message}`)}
   };
   const restored=storage.load?.();
-  if(restored?.sid&&restored?.session)sessions.set(restored.sid,{...restored.session,checkedAt:0});
+  if(restored?.sid&&restored?.session){const session={...restored.session};if(session.member===true&&!session.memberVerifiedAt)session.memberVerifiedAt=Number(session.checkedAt)||Date.now();session.checkedAt=0;sessions.set(restored.sid,session);}
   const persist=(sid,session)=>storage.save?.({sid,session});
   const clearStored=()=>storage.clear?.();
   const server=http.createServer(async(req,res)=>{
@@ -127,7 +137,7 @@ function startServer(port=4317, storage={}) {
         await refreshRoleMetadata();
         let member;try{member=await memberCheck(session,()=>persist(sid,session),url.searchParams.get('force')==='1');}catch(error){
           if(error.reauthRequired){sessions.delete(sid);clearStored();return send(res,200,JSON.stringify({configured:true,linked:false,user:null,reauth:true}),'application/json; charset=utf-8',{'Set-Cookie':'nv_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'});}
-          return send(res,200,JSON.stringify({configured:true,linked:true,user:session.user,member:null,checking:true}));
+          return send(res,200,JSON.stringify({configured:true,linked:true,user:session.user,member:null,checking:true,needsConsent:error.consentRequired===true,error:error.message}));
         }
         return send(res,200,JSON.stringify({configured:true,linked:true,user:session.user,member,roles:roleDetails(session)}));
       }
@@ -148,7 +158,7 @@ function startServer(port=4317, storage={}) {
         let sid=cookies(req).nv_session;const headers={};if(!sid){sid=crypto.randomBytes(32).toString('hex');headers['Set-Cookie']=`nv_session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`;}
         const state=crypto.randomBytes(24).toString('hex'),codeVerifier=verifier();pending.set(state,{created:Date.now(),codeVerifier,sid});
         const redirect=`http://127.0.0.1:${port}/auth/callback`,authorize=new URL('https://discord.com/oauth2/authorize');
-        authorize.search=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:redirect,scope:'identify guilds.members.read',state,code_challenge:challenge(codeVerifier),code_challenge_method:'S256'}).toString();
+        authorize.search=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:redirect,scope:'identify guilds.members.read',state,code_challenge:challenge(codeVerifier),code_challenge_method:'S256',prompt:'consent'}).toString();
         return send(res,200,JSON.stringify({url:authorize.toString()}),'application/json; charset=utf-8',headers);
       }
       if(url.pathname==='/auth/callback'){
@@ -163,7 +173,7 @@ function startServer(port=4317, storage={}) {
         const session={accessToken:token.access_token,refreshToken:token.refresh_token,expiresAt:Date.now()+(token.expires_in||604800)*1000,user:{id:me.id,username:me.username,displayName:me.global_name||me.username,avatar:me.avatar?`https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=96`:null},checkedAt:0,member:false,roleIds:[]};
         const sid=record.sid;sessions.set(sid,session);persist(sid,session);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Set-Cookie':`nv_session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000`});
-        let member;try{member=await memberCheck(session,()=>persist(sid,session),true)}catch{return res.end(page('Discord is linked and saved. Membership could not be checked right now; return to the launcher and retry the check.'));}
+        let member;try{member=await memberCheck(session,()=>persist(sid,session),true)}catch(error){return res.end(page(error.consentRequired?'Discord is linked and saved, but permission to verify Nexa Verse membership was not granted. Return to the launcher and refresh Discord permissions.':'Discord is linked and saved. Membership could not be checked right now; return to the launcher and retry the check.'));}
         if(!member)return res.end(page('Discord is linked and saved. Join the Nexa Verse Discord server, then use Check membership in the launcher.',process.env.DISCORD_INVITE_URL));
         return res.end(page('Discord linked and Nexa Verse membership verified. You can return to the launcher.'));
       }
@@ -175,7 +185,7 @@ function startServer(port=4317, storage={}) {
       }
       if(url.pathname==='/api/play'){
         const sid=cookies(req).nv_session,session=sessions.get(sid);if(!session)return send(res,403,JSON.stringify({error:'Link Discord and join the Nexa Verse server before playing.'}));
-        let member;try{member=await memberCheck(session,()=>persist(sid,session),true)}catch{return send(res,503,JSON.stringify({error:'Could not verify server membership. Try again shortly.'}));}
+        let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch(error){return send(res,503,JSON.stringify({error:error.message||'Could not verify server membership. Try again shortly.',needsConsent:error.consentRequired===true,reauthRequired:error.reauthRequired===true}));}
         if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server to access the launcher.'}));
         return send(res,200,JSON.stringify({ok:true,message:'Discord linked and Nexa Verse membership verified. Configure the game launch command to start playing.'}));
       }
@@ -188,4 +198,5 @@ function startServer(port=4317, storage={}) {
 }
 if(require.main===module)startServer(Number(process.env.PORT)||4317).then(()=>console.log('Nexa Verse at http://127.0.0.1:4317'));
 module.exports={startServer};
+
 
