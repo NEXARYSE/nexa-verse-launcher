@@ -58,8 +58,18 @@ jobs:
             'bright-lights-big-city.mp3' = 'b773e30e7cda5d4e27513ca2f5367bcadd5bd9e880e3ff4b0863c926f6e51ea8'
             'se-me-nota.mp3' = '24551b0eb7f9427b1722170137b770b8ee3f5f867f3e566eb1d48498875f5e2a'
           }
-          $invalid = node -e "const fs=require('fs');for(const f of process.argv.slice(1)){const p='music/'+f;const b=fs.readFileSync(p);if(b.subarray(0,3).toString()!=='ID3'||b.length<1000000)process.exitCode=1}" @($audioFiles.Keys)
-          if ($LASTEXITCODE -eq 0) { Write-Host 'Playlist audio assets are valid.'; exit 0 }
+          $audioValid = $true
+          foreach ($name in $audioFiles.Keys) {
+            $path = Join-Path 'music' $name
+            if ((Get-Item -LiteralPath $path).Length -lt 1000000) { $audioValid = $false; break }
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+              $header = [byte[]]::new(3)
+              [void]$stream.Read($header, 0, 3)
+              if ([System.Text.Encoding]::ASCII.GetString($header) -ne 'ID3') { $audioValid = $false; break }
+            } finally { $stream.Dispose() }
+          }
+          if ($audioValid) { Write-Host 'Playlist audio assets are valid.'; exit 0 }
           $apiHeaders = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
           $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/NEXARYSE/nexa-verse-launcher/releases/tags/v0.5.15' -Headers $apiHeaders
           foreach ($name in $audioFiles.Keys) {
