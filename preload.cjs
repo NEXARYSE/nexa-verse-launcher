@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('launcher', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
+  launchDS4Windows: () => ipcRenderer.invoke('launch-ds4windows'),
   openExternal: url => ipcRenderer.invoke('open-external',url),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   getSocialState: () => ipcRenderer.invoke('social-state'),

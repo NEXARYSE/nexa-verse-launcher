@@ -35,6 +35,17 @@ app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1050, minHeight: 720, backgroundColor: '#080b18', title: 'NEXA VERSE LAUNCHER', icon:path.join(__dirname,'nexa-icon.ico'), autoHideMenuBar: true,
     webPreferences: { preload: require('node:path').join(__dirname,'preload.cjs'), nodeIntegration: false, contextIsolation: true, partition:'persist:nexa-verse-launcher' } });
   ipcMain.handle('pick-folder', async () => { const result=await dialog.showOpenDialog(win,{properties:['openDirectory']}); return result.canceled ? null : result.filePaths[0]; });
+  ipcMain.handle('launch-ds4windows', async () => {
+    const result=await dialog.showOpenDialog(win,{title:'Select DS4Windows.exe',properties:['openFile'],filters:[{name:'DS4Windows',extensions:['exe']}]});
+    if(result.canceled||!result.filePaths[0])return {canceled:true};
+    const executable=path.resolve(result.filePaths[0]);
+    if(path.basename(executable).toLowerCase()!=='ds4windows.exe')return {ok:false,error:'Select the DS4Windows.exe application.'};
+    return await new Promise(resolve=>{
+      const child=spawn(executable,[],{cwd:path.dirname(executable),detached:true,stdio:'ignore',windowsHide:false});
+      child.once('spawn',()=>{child.unref();resolve({ok:true})});
+      child.once('error',error=>resolve({ok:false,error:`Could not start DS4Windows: ${error.message}`}));
+    });
+  });
   ipcMain.handle('social-state',()=>socialState);
   ipcMain.handle('connect-social',()=>{
     if(!socialBridge||socialBridge.killed)return {ok:false,error:'The Discord Social SDK could not start in this build.'};

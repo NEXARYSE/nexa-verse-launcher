@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.nexaverse.launcher",
-    "productName": "NEXA VERSE LAUNCHER",
+  "productName": "NEXAVERSE LAUNCHER",
     "electronDist": "node_modules/electron/dist",
     "files": [
       "**/*",
@@ -49,7 +49,7 @@
     "win": {
       "target": "nsis",
       "icon": "nexa-icon.ico",
-      "artifactName": "NEXA VERSE LAUNCHER.${ext}"
+      "artifactName": "NEXAVERSE LAUNCHER.${ext}"
     },
     "nsis": {
       "oneClick": false,
