@@ -1,6 +1,6 @@
 # NEXA VERSE LAUNCHER
 
-Official Windows launcher build for the Nexa Verse project. Build 0.5.0 includes the GTA VI themed interface, six animated background images, Discord account linking and Nexa Verse server membership checks, game-folder selection, controller detection, Discord Rich Presence, and launcher update checks. The Discord friends list scrolls independently from its status banner, and the cover-style title is flat (no stacked 3D shadow).
+Official Windows launcher build for the Nexa Verse project. Build 0.5.1 includes the GTA VI themed interface, six animated background images, Discord account linking and Nexa Verse server membership checks, game-folder selection, controller detection, Discord Rich Presence, shared active-launcher presence, automatic updates, and an in-launch YouTube soundtrack player with a saved volume control and two-track queue. The Discord friends list scrolls independently from its status banner, and the cover-style title is flat (no stacked 3D shadow).
 
 ## Discord account and server membership
 

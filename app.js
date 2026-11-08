@@ -71,3 +71,19 @@ $('#socialConnect').onclick=async()=>{
 window.launcher?.onSocialEvent(applySocialState);
 window.launcher?.getSocialState().then(applySocialState).catch(()=>{});
 
+// Play the user-provided tracks through YouTube's visible embedded player.
+const soundtrack=[{id:'aonTwBM1AZM',name:'GTA 6 - Official Main Theme Music'},{id:'QAwX1Tuv5Fw',name:'But I Think It’s a Dream — Captain & Tennille'}];
+const musicPanel=$('#musicPlayerPanel'),musicToggle=$('#musicToggle'),musicClose=$('#musicClose'),musicStatus=$('#musicStatus'),musicVolume=$('#musicVolume'),musicVolumeValue=$('#musicVolumeValue'),musicError=$('#musicError');
+const currentTrackName=$('#currentTrackName'),dockTrackName=$('#dockTrackName');
+let ytPlayer=null,ytApiLoading=false,ytPlayerReady=false,currentTrackIndex=0,skipPending=false;
+const savedVolume=Number(localStorage.getItem('nv_music_volume'));
+if(Number.isFinite(savedVolume)&&savedVolume>=0&&savedVolume<=100){musicVolume.value=String(savedVolume);musicVolumeValue.textContent=`${savedVolume}%`}
+function showTrack(){const name=soundtrack[currentTrackIndex].name;currentTrackName.textContent=name;dockTrackName.textContent=name;currentTrackName.title=name;dockTrackName.title=name}
+function setMusicOpen(open){musicPanel.classList.toggle('hidden',!open);musicClose.classList.toggle('hidden',!open);musicToggle.textContent=open?'Hide player':'Open player';musicToggle.setAttribute('aria-label',open?'Hide music player':'Open music player');if(open&&!ytPlayer&&!ytApiLoading)loadYouTubePlayer();if(!open&&ytPlayer&&ytPlayer.getPlayerState?.()===1){ytPlayer.pauseVideo();musicStatus.textContent='Paused';}}
+function loadYouTubePlayer(){ytApiLoading=true;musicStatus.textContent='Loading YouTube player…';const api=document.createElement('script');api.src='https://www.youtube.com/iframe_api';api.onerror=()=>{ytApiLoading=false;musicStatus.textContent='Could not load player';musicError.textContent='YouTube is unavailable. Check your connection and reopen the player.';musicError.classList.remove('hidden')};document.head.append(api);window.onYouTubeIframeAPIReady=()=>{ytApiLoading=false;if(!document.getElementById('youtubePlayer'))return;ytPlayer=new YT.Player('youtubePlayer',{width:'480',height:'270',videoId:soundtrack[currentTrackIndex].id,playerVars:{playsinline:1,controls:1,enablejsapi:1,origin:location.origin,rel:0},events:{onReady:event=>{ytPlayerReady=true;event.target.setVolume(Number(musicVolume.value));musicStatus.textContent='Ready · press play in the YouTube player';if(skipPending){skipPending=false;event.target.loadVideoById(soundtrack[currentTrackIndex].id);}},onStateChange:event=>{if(event.data===1){const id=event.target.getVideoData()?.video_id,index=soundtrack.findIndex(track=>track.id===id);if(index>=0){currentTrackIndex=index;showTrack()}musicStatus.textContent='Now playing'}else if(event.data===2)musicStatus.textContent='Paused';else if(event.data===0){if(currentTrackIndex<soundtrack.length-1){currentTrackIndex++;showTrack();event.target.loadVideoById(soundtrack[currentTrackIndex].id)}else musicStatus.textContent='Playlist ended'}},onError:()=>{musicStatus.textContent='Track unavailable';musicError.textContent='This video cannot play here. Try opening it on YouTube.';musicError.classList.remove('hidden')}}})}}
+musicToggle.onclick=()=>setMusicOpen(musicPanel.classList.contains('hidden'));
+musicClose.onclick=()=>setMusicOpen(false);
+$('#musicSkip').onclick=()=>{currentTrackIndex=(currentTrackIndex+1)%soundtrack.length;showTrack();musicError.classList.add('hidden');setMusicOpen(true);if(ytPlayerReady)ytPlayer.loadVideoById(soundtrack[currentTrackIndex].id);else skipPending=true};
+musicVolume.oninput=()=>{const value=Number(musicVolume.value);musicVolumeValue.textContent=`${value}%`;localStorage.setItem('nv_music_volume',String(value));if(ytPlayerReady)ytPlayer.setVolume(value)};
+showTrack();
+
