@@ -11,6 +11,8 @@ try { ROLE_NAMES=JSON.parse(process.env.DISCORD_ROLE_NAMES_JSON||'{}'); } catch 
 let ROLE_METADATA={};
 try { ROLE_METADATA=JSON.parse(process.env.DISCORD_ROLE_METADATA_JSON||'{}'); } catch {}
 const ROLE_METADATA_URL=process.env.DISCORD_ROLE_METADATA_URL||'';
+let PRESENCE_SERVICE_URL=process.env.NV_PRESENCE_SERVICE_URL||'';
+if(!PRESENCE_SERVICE_URL){try{PRESENCE_SERVICE_URL=JSON.parse(fs.readFileSync(path.join(__dirname,'presence-service.json'),'utf8')).url||''}catch{}}
 let roleMetadataFetchedAt=0,roleMetadataLoad=null;
 const sessions = new Map(), pending = new Map(), activeLaunchers = new Map(), tokenRefreshes = new WeakMap();
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.avif':'image/avif', '.webp':'image/webp' };
@@ -82,6 +84,36 @@ async function refreshRoleMetadata(){
 }
 function roleDetails(session){return (session.roleIds||[]).map(id=>{const meta=ROLE_METADATA[id]||{};const mappedName=meta.name||ROLE_NAMES[id];const name=mappedName||(id===GUILD_ID?'@everyone':'');const color=typeof meta.color==='string'&&/^#[0-9a-f]{6}$/i.test(meta.color)?meta.color:null;return {id,name,color,metadataAvailable:Boolean(mappedName||id===GUILD_ID)};});}
 function startServer(port=4317, storage={}) {
+  const launcherHeartbeatId=crypto.randomUUID();
+  let sharedPresenceSocket=null,sharedPresenceCount=null,sharedPresenceHeartbeat=null,sharedPresenceRetry=null,presenceEligible=false;
+  const disconnectSharedPresence=()=>{
+    presenceEligible=false;
+    clearInterval(sharedPresenceHeartbeat);sharedPresenceHeartbeat=null;
+    clearTimeout(sharedPresenceRetry);sharedPresenceRetry=null;
+    sharedPresenceCount=null;
+    const socket=sharedPresenceSocket;sharedPresenceSocket=null;
+    try{socket?.close()}catch{}
+  };
+  const connectSharedPresence=()=>{
+    if(!presenceEligible||!PRESENCE_SERVICE_URL||sharedPresenceSocket||typeof WebSocket==='undefined')return;
+    try{
+      const endpoint=new URL('/api/connect',PRESENCE_SERVICE_URL);
+      if(endpoint.protocol!=='https:')throw new Error('Presence service must use HTTPS');
+      endpoint.protocol='wss:';endpoint.searchParams.set('id',launcherHeartbeatId);
+      const socket=new WebSocket(endpoint);sharedPresenceSocket=socket;
+      socket.addEventListener('open',()=>{
+        const heartbeat=()=>{if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'heartbeat'}))};
+        heartbeat();sharedPresenceHeartbeat=setInterval(heartbeat,60_000);
+      });
+      socket.addEventListener('message',event=>{try{const packet=JSON.parse(String(event.data));if(Number.isSafeInteger(packet.connected)&&packet.connected>=0)sharedPresenceCount=packet.connected}catch{}});
+      socket.addEventListener('close',()=>{
+        if(sharedPresenceSocket===socket)sharedPresenceSocket=null;
+        clearInterval(sharedPresenceHeartbeat);sharedPresenceHeartbeat=null;sharedPresenceCount=null;
+        if(presenceEligible&&PRESENCE_SERVICE_URL&&!sharedPresenceRetry)sharedPresenceRetry=setTimeout(()=>{sharedPresenceRetry=null;connectSharedPresence()},15_000);
+      });
+      socket.addEventListener('error',()=>{try{socket.close()}catch{}});
+    }catch(error){console.warn(`Shared Nexa Verse presence could not connect: ${error.message}`)}
+  };
   const restored=storage.load?.();
   if(restored?.sid&&restored?.session)sessions.set(restored.sid,{...restored.session,checkedAt:0});
   const persist=(sid,session)=>storage.save?.({sid,session});
@@ -101,11 +133,14 @@ function startServer(port=4317, storage={}) {
       }
       if(url.pathname==='/api/presence'&&req.method==='POST'){
         const sid=cookies(req).nv_session,session=sessions.get(sid);
-        if(!session)return send(res,200,JSON.stringify({connected:0}));
+        if(!session){disconnectSharedPresence();return send(res,200,JSON.stringify({connected:0}));}
         let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch{return send(res,200,JSON.stringify({connected:0}));}
-        if(!member){activeLaunchers.delete(sid);return send(res,200,JSON.stringify({connected:0}));}
+        if(!member){activeLaunchers.delete(sid);disconnectSharedPresence();return send(res,200,JSON.stringify({connected:0}));}
         activeLaunchers.set(sid,Date.now());
         for(const [key,seen] of activeLaunchers)if(Date.now()-seen>45000)activeLaunchers.delete(key);
+        presenceEligible=true;
+        connectSharedPresence();
+        if(Number.isSafeInteger(sharedPresenceCount))return send(res,200,JSON.stringify({connected:sharedPresenceCount,scope:'network'}));
         return send(res,200,JSON.stringify({connected:activeLaunchers.size,scope:'this launcher instance'}));
       }
       if(url.pathname==='/api/auth/start'&&req.method==='POST'){
@@ -134,6 +169,7 @@ function startServer(port=4317, storage={}) {
       }
       if(url.pathname==='/auth/logout'&&req.method==='POST'){
         const sid=cookies(req).nv_session,session=sessions.get(sid);sessions.delete(sid);activeLaunchers.delete(sid);clearStored();
+        disconnectSharedPresence();
         if(session?.refreshToken){const form=new URLSearchParams({client_id:CLIENT_ID,token:session.refreshToken,token_type_hint:'refresh_token'});fetch('https://discord.com/api/oauth2/token/revoke',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:form}).catch(()=>{});}
         return send(res,200,'{}','application/json; charset=utf-8',{'Set-Cookie':'nv_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'});
       }
@@ -152,3 +188,4 @@ function startServer(port=4317, storage={}) {
 }
 if(require.main===module)startServer(Number(process.env.PORT)||4317).then(()=>console.log('Nexa Verse at http://127.0.0.1:4317'));
 module.exports={startServer};
+

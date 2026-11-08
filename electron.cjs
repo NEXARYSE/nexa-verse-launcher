@@ -5,9 +5,64 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
+const net = require('node:net');
+const crypto = require('node:crypto');
 let server, win, socialBridge, isQuitting=false;
 let socialState={status:'signedOut',friends:[]};
 let socialAuthFile;
+let discordRpcSocket=null, discordRpcBuffer=Buffer.alloc(0), discordRpcRetry=null, discordRpcReady=false, discordActivityEnabled=true;
+const DISCORD_APPLICATION_ID='1568756074692083925';
+const launcherStartedAt=Math.floor(Date.now()/1000);
+
+function rpcFrame(opcode,payload){
+  const body=Buffer.from(JSON.stringify(payload),'utf8'),frame=Buffer.alloc(8+body.length);
+  frame.writeUInt32LE(opcode,0);frame.writeUInt32LE(body.length,4);body.copy(frame,8);return frame;
+}
+function setDiscordActivity(enabled){
+  discordActivityEnabled=enabled===true;
+  if(!discordRpcReady||!discordRpcSocket)return;
+  const activity=discordActivityEnabled?{
+    type:0,
+    details:'Browsing Nexa Verse',
+    state:'Launcher ready',
+    timestamps:{start:launcherStartedAt}
+  }:null;
+  discordRpcSocket.write(rpcFrame(1,{cmd:'SET_ACTIVITY',args:{pid:process.pid,activity},nonce:crypto.randomUUID()}));
+}
+function connectDiscordRpc(){
+  if(isQuitting||discordRpcSocket)return;
+  let index=0;
+  const tryPipe=()=>{
+    if(isQuitting)return;
+    if(index>9){scheduleDiscordRpcRetry();return;}
+    const current=index++,socket=net.createConnection(`\\\\?\\pipe\\discord-ipc-${current}`);
+    let settled=false;
+    const timeout=setTimeout(()=>socket.destroy(),1800);
+    socket.once('connect',()=>{
+      settled=true;clearTimeout(timeout);discordRpcSocket=socket;discordRpcBuffer=Buffer.alloc(0);
+      socket.write(rpcFrame(0,{v:1,client_id:DISCORD_APPLICATION_ID}));
+    });
+    socket.on('data',chunk=>{
+      discordRpcBuffer=Buffer.concat([discordRpcBuffer,chunk]);
+      while(discordRpcBuffer.length>=8){
+        const opcode=discordRpcBuffer.readUInt32LE(0),length=discordRpcBuffer.readUInt32LE(4);
+        if(length>1024*1024){socket.destroy();return;}
+        if(discordRpcBuffer.length<8+length)return;
+        const body=discordRpcBuffer.subarray(8,8+length).toString('utf8');discordRpcBuffer=discordRpcBuffer.subarray(8+length);
+        if(opcode!==1)continue;
+        try{const message=JSON.parse(body);if(message.evt==='READY'){discordRpcReady=true;setDiscordActivity(discordActivityEnabled)}}catch{}
+      }
+    });
+    socket.once('error',()=>{clearTimeout(timeout);if(discordRpcSocket===socket)discordRpcSocket=null;if(!settled)tryPipe()});
+    socket.once('close',()=>{clearTimeout(timeout);if(discordRpcSocket===socket)discordRpcSocket=null;discordRpcReady=false;if(!isQuitting)scheduleDiscordRpcRetry()});
+  };
+  tryPipe();
+}
+function scheduleDiscordRpcRetry(){
+  if(discordRpcRetry||isQuitting)return;
+  discordRpcRetry=setTimeout(()=>{discordRpcRetry=null;connectDiscordRpc()},15000);
+  discordRpcRetry.unref?.();
+}
 function publishSocial(data){
   if(data.type==='friends')socialState={status:'ready',friends:Array.isArray(data.friends)?data.friends:[]};
   else if(data.type==='status')socialState={...socialState,status:data.status};
@@ -47,6 +102,7 @@ app.whenReady().then(async () => {
     });
   });
   ipcMain.handle('social-state',()=>socialState);
+  ipcMain.handle('set-discord-activity',(_,enabled)=>{setDiscordActivity(enabled===true);return {ok:discordRpcReady,enabled:discordActivityEnabled}});
   ipcMain.handle('connect-social',()=>{
     if(!socialBridge||socialBridge.killed)return {ok:false,error:'The Discord Social SDK could not start in this build.'};
     socialState={...socialState,status:'authorizing'};socialBridge.stdin.write('AUTH\n');return {ok:true};
@@ -86,7 +142,9 @@ app.whenReady().then(async () => {
   }
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.loadURL('http://127.0.0.1:4317');
+  connectDiscordRpc();
   if(app.isPackaged) setTimeout(()=>autoUpdater.checkForUpdates().catch(e=>report('error',e.message)),2500);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => {isQuitting=true;server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
+app.on('before-quit', () => {isQuitting=true;clearTimeout(discordRpcRetry);setDiscordActivity(false);setTimeout(()=>discordRpcSocket?.destroy(),100);server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
+

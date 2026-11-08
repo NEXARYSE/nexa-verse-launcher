@@ -1,6 +1,6 @@
 # NEXA VERSE LAUNCHER
 
-Official Windows launcher build for the Nexa Verse project. Build 0.4.0 includes the GTA VI themed interface, six animated background images, Discord account linking and Nexa Verse server membership checks, game-folder selection, controller detection, and launcher update checks, with a fixed Discord friends list that scrolls independently from its status banner. The cover-style title is flat (no stacked 3D shadow).
+Official Windows launcher build for the Nexa Verse project. Build 0.5.0 includes the GTA VI themed interface, six animated background images, Discord account linking and Nexa Verse server membership checks, game-folder selection, controller detection, Discord Rich Presence, and launcher update checks. The Discord friends list scrolls independently from its status banner, and the cover-style title is flat (no stacked 3D shadow).
 
 ## Discord account and server membership
 
@@ -32,8 +32,13 @@ npm run dist:win
 
 ## Connected launcher count
 
-The home card now counts verified Discord members with a fresh heartbeat connected to this launcher process (45-second expiry). Since each downloaded copy runs its own local server, this is a per-install count, not a network-wide count. A shared total across players requires a hosted presence service, which is not configured yet.
+The home card counts active sessions. The launcher sends a random, temporary session ID every 20 seconds after its local Discord membership check succeeds. Without the shared Worker endpoint configured in `presence-service.json`, the count is limited to the current launcher process. To make it network-wide, deploy the Cloudflare Worker in `presence-worker/`, then set the deployed HTTPS URL in `presence-service.json` and publish a launcher release. The Worker stores only anonymous session IDs and heartbeat times, expiring them after 45 seconds.
+
+## Discord activity
+
+When the Discord desktop client is open, the launcher can show Nexa Verse Launcher as the user's Discord activity. This is enabled by default and can be disabled in Settings. Discord's activity status must be enabled in the user's Discord client. The launcher communicates over Discord's local IPC and does not need to publish the user's linked account or game-folder path.
 
 ## Controller icon
 
 The controller card defaults to the supplied mouse image and switches to DualShock 4, DualSense, Xbox, or SCUF artwork based on the Windows Gamepad API identifier. DGM20 USB Microphone and gamepad identifiers containing USB microphone are shown as SCUF Controller. The DS4 button lets the player select and open a local DS4Windows.exe; controllers exposed by its virtual gamepad are detected by the launcher. DS4Windows and its driver dependencies are not redistributed inside the launcher. Unknown gamepads use a generic outline icon.
+

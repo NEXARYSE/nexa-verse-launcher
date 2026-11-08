@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('launcher', {
   openExternal: url => ipcRenderer.invoke('open-external',url),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   getSocialState: () => ipcRenderer.invoke('social-state'),
+  setDiscordActivity: enabled => ipcRenderer.invoke('set-discord-activity',enabled),
   connectSocial: () => ipcRenderer.invoke('connect-social'),
   refreshSocialFriends: () => ipcRenderer.invoke('refresh-social-friends'),
   onSocialEvent: callback => ipcRenderer.on('social-event',(_,data)=>callback(data)),
@@ -12,3 +13,4 @@ contextBridge.exposeInMainWorld('launcher', {
   onUpdateStatus: callback => ipcRenderer.on('update-status',(_,data)=>callback(data)),
   windowAction: action => ipcRenderer.send('window-action', action)
 });
+
