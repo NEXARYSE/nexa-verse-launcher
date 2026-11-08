@@ -1,8 +1,8 @@
-version: 0.5.19
+version: 0.5.20
 files:
-  - url: https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.19/NEXAVERSE-LAUNCHER.exe
-    sha512: oYtaWhtHI7gUJ//zu9ci95kIBEw+8+UzvBiT7+OdGGdbJommYRQGZmhbN9WPZAb6TZuulIyzUEZG84W0vmrz6w==
-    size: 160699227
+  - url: https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.20/NEXAVERSE-LAUNCHER.exe
+    sha512: tlRuLAO+hvmsi5vv4l+Lr3euRcQqO3hn1C8HqgTyHZesp44qXwmIDO6D+ky3smf/1QujDP1mp+U0+U8s/V98fw==
+    size: 160701870
 path: NEXAVERSE-LAUNCHER.exe
-sha512: oYtaWhtHI7gUJ//zu9ci95kIBEw+8+UzvBiT7+OdGGdbJommYRQGZmhbN9WPZAb6TZuulIyzUEZG84W0vmrz6w==
-releaseDate: '2026-11-08T11:30:03.250Z'
+sha512: tlRuLAO+hvmsi5vv4l+Lr3euRcQqO3hn1C8HqgTyHZesp44qXwmIDO6D+ky3smf/1QujDP1mp+U0+U8s/V98fw==
+releaseDate: '2026-11-08T11:45:36.870Z'
