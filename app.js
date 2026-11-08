@@ -78,7 +78,9 @@ window.launcher?.getSocialState().then(applySocialState).catch(()=>{});
 // Audio-only playlist. Licensed MP3 files are packaged under ./music/.
 const soundtrack=[
   {file:'/music/gta6-theme.mp3',name:'GTA 6 Official Theme'},
-  {file:'/music/captain-tennille-dream.mp3',name:'But I Think It’s a Dream — Captain & Tennille'}
+  {file:'/music/captain-tennille-dream.mp3',name:'But I Think It’s a Dream — Captain & Tennille'},
+  {file:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.10/se-me-nota.mp3',name:'Se Me Nota (Agarrame) — Chimbala x Omega'},
+  {file:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v0.5.10/bright-lights-big-city.mp3',name:'Bright Lights, Big City — Keith Richards'}
 ];
 const musicAudio=$('#musicAudio'),musicToggle=$('#musicToggle'),musicStatus=$('#musicStatus'),musicVolume=$('#musicVolume'),musicVolumeValue=$('#musicVolumeValue'),currentTrackName=$('#currentTrackName');
 let currentTrackIndex=0;
