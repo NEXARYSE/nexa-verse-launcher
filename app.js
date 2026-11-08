@@ -165,24 +165,41 @@ $('#controllerTestSelect')?.addEventListener('change',()=>{controllerTesterPadIn
 window.addEventListener('gamepadconnected',()=>{if(controllerTesterActive)renderControllerTestFrame()});
 window.addEventListener('keydown',event=>{if(event.key==='Escape'&&controllerTesterActive)closeControllerTester()});
 let gamepadNavPrevious=[],gamepadNavRepeatAt=0;
-function moveControllerFocus(direction){
- const selector='button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex]:not([tabindex="-1"])';
- const items=Array.from(document.querySelectorAll(selector)).filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
- if(!items.length)return;const current=document.activeElement,rect=current?.getBoundingClientRect?.();let next=null;
- if(rect&&items.includes(current)){const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;let best=Infinity;for(const item of items){if(item===current)continue;const r=item.getBoundingClientRect(),dx=r.left+r.width/2-cx,dy=r.top+r.height/2-cy,primary=direction==='left'?-dx:direction==='right'?dx:direction==='up'?-dy:dy;if(primary<=4)continue;const secondary=direction==='left'||direction==='right'?Math.abs(dy):Math.abs(dx),score=primary+secondary*2;if(score<best){best=score;next=item}}}
- if(!next){const index=items.indexOf(current);next=items[(index+(direction==='left'||direction==='up'?-1:1)+items.length)%items.length]}
- next?.focus({preventScroll:false})
+function controllerFocusItems(){
+ const selectors='button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex]:not([tabindex="-1"]),.friend,.trophy-card,.status-card,.home-panel,.setting,.log-list>div,.updates-panel a,.install-strip,.welcome';
+ const activeDialog=controllerTesterActive?'#controllerTestDialog':(!$('#gate')?.classList.contains('hidden')?'#gate':null);
+ const items=Array.from(document.querySelectorAll(selectors)).filter(el=>{
+  if(!el.getClientRects().length||getComputedStyle(el).visibility==='hidden')return false;
+  if(activeDialog)return !!el.closest(activeDialog);
+  if(el.closest('.controller-test-dialog'))return false;
+  if(el.closest('#gate')&&!$('#gate')?.classList.contains('hidden'))return false;
+  const page=el.closest('.page');return !page||page.classList.contains('active-page');
+ });
+ for(const el of items)if(!el.matches('button,a[href],input,select,[tabindex]'))el.tabIndex=0;
+ return items
 }
-function stepControllerTab(delta){const tabs=Array.from(document.querySelectorAll('.nav[data-page]'));if(!tabs.length)return;let current=tabs.findIndex(tab=>tab.classList.contains('active'));current=(current+delta+tabs.length)%tabs.length;tabs[current].click();tabs[current].focus()}
+function focusControllerElement(element){if(!element)return;document.querySelectorAll('.controller-focus').forEach(el=>el.classList.remove('controller-focus'));element.classList.add('controller-focus');element.focus({preventScroll:false})}
+function moveControllerFocus(direction){
+ const items=controllerFocusItems();if(!items.length)return;
+ const current=document.activeElement,rect=current?.getBoundingClientRect?.();let next=null;
+ if(rect&&items.includes(current)){const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;let best=Infinity;for(const item of items){if(item===current)continue;const r=item.getBoundingClientRect(),dx=r.left+r.width/2-cx,dy=r.top+r.height/2-cy,primary=direction==='left'?-dx:direction==='right'?dx:direction==='up'?-dy:dy;if(primary<=4)continue;const secondary=direction==='left'||direction==='right'?Math.abs(dy):Math.abs(dx),score=primary+secondary*1.7;if(score<best){best=score;next=item}}}
+ if(!next){const index=items.indexOf(current);if(index<0)next=items[0];else next=items[(index+(direction==='left'||direction==='up'?-1:1)+items.length)%items.length]}
+ focusControllerElement(next)
+}
+function stepControllerTab(delta){const tabs=Array.from(document.querySelectorAll('.nav[data-page]'));if(!tabs.length)return;let current=tabs.findIndex(tab=>tab.classList.contains('active'));current=(current+delta+tabs.length)%tabs.length;tabs[current].click();focusControllerElement(tabs[current])}
+let controllerNavFrame=0;
 function pollControllerNavigation(){
- const pad=controllerTestPads()[0];if(!pad||!document.hasFocus()){gamepadNavPrevious=[];return}
+ const pad=controllerTestPads()[0];
+ if(!pad||document.visibilityState!=='visible'||!document.hasFocus()){gamepadNavPrevious=[];controllerNavFrame=requestAnimationFrame(pollControllerNavigation);return}
  const prev=gamepadNavPrevious[pad.index]||[],pressed=i=>!!(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.6),edge=i=>pressed(i)&&!prev[i],now=Date.now();
- if(controllerTesterActive){if(edge(1))closeControllerTester();else{const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.55],['right',15,x>.55],['up',12,y<-.55],['down',13,y>.55]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+260;break}}}
+ if(controllerTesterActive){if(edge(1))closeControllerTester();else{const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.45],['right',15,x>.45],['up',12,y<-.45],['down',13,y>.45]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+240;break}}}
  else{
   if(edge(4))stepControllerTab(-1);if(edge(5))stepControllerTab(1);
   const typing=document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]');
-  if(!typing){if(edge(0)&&document.activeElement?.click)document.activeElement.click();if(edge(1)){const active=document.querySelector('.page.active-page');if(active?.id!=='play'){$('.nav[data-page="play"]')?.click();$('.nav[data-page="play"]')?.focus()}else document.activeElement?.blur?.()}
-   const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.55],['right',15,x>.55],['up',12,y<-.55],['down',13,y>.55]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+260;break}}
+  if(!typing){if(edge(0)&&document.activeElement?.click)document.activeElement.click();if(edge(1)){const active=document.querySelector('.page.active-page');if(active?.id!=='play'){const playTab=$('.nav[data-page="play"]');playTab?.click();focusControllerElement(playTab)}else document.activeElement?.blur?.()}
+   const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.45],['right',15,x>.45],['up',12,y<-.45],['down',13,y>.45]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+240;break}}
  }
- gamepadNavPrevious[pad.index]=pad.buttons.map(button=>!!(button.pressed||button.value>.6))
+ gamepadNavPrevious[pad.index]=pad.buttons.map(button=>!!(button.pressed||button.value>.6));
+ controllerNavFrame=requestAnimationFrame(pollControllerNavigation)
 }
+controllerNavFrame=requestAnimationFrame(pollControllerNavigation);
