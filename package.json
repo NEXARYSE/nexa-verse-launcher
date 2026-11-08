@@ -1,6 +1,6 @@
 {
   "name": "nexa-verse-launcher",
-  "version": "0.5.15",
+  "version": "0.5.16",
   "private": true,
   "description": "Nexa Verse PC launcher official build",
   "repository": {
@@ -49,7 +49,7 @@
     "win": {
       "target": "nsis",
       "icon": "nexa-icon.ico",
-      "artifactName": "NEXAVERSE LAUNCHER.${ext}"
+      "artifactName": "NEXAVERSE-LAUNCHER.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -63,6 +63,7 @@
     ]
   }
 }
+
 
 
 

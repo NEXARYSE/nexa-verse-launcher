@@ -23,7 +23,17 @@ function setUpdateBadge(s){const badge=$('#updateBadge');if(!badge)return;const 
 $('#updateBtn').onclick=async()=>{if(!window.launcher){toast('Automatic updates are available in the installed launcher.');return}setUpdateBadge({status:'checking',detail:'Checking for launcher updates…'});const r=await window.launcher.checkUpdates();if(r.status==='error'||r.status==='dev')setUpdateBadge(r)};
 $('#updateBadge').onclick=async()=>{if(!window.launcher)return;if($('#updateBadge').classList.contains('ready')){window.launcher.installUpdate();return}setUpdateBadge({status:'checking',detail:'Checking for launcher updates…'});const r=await window.launcher.checkUpdates();if(r.status==='error'||r.status==='dev')setUpdateBadge(r)};
 window.launcher?.onUpdateStatus(s=>{setUpdateBadge(s);if(s.status==='current')toast('Launcher is up to date.')});
-const modpackCodeHash='5430c990002b63950b53d03241f4bfa9beba6da3a17aafea2a84e8588c72aca7';
+const modpackCodeHashes=new Set([
+  '5430c990002b63950b53d03241f4bfa9beba6da3a17aafea2a84e8588c72aca7',
+  'f1a50a507cb34905114bbd8a7a5dd4fb0341438109346734aaa89e6c98c54626',
+  '04cd2a118a25166d6bbee72d86299ffd82b8a37eb3657bb6e190ad82dbd135cf',
+  'c9892cda425a3a766673c79a06ec64b5a916eaf345a6ccf7252fb50e643ab3c5',
+  '00a1fc0d12f3d3d5c75fb1b9bc5edb5f86f3d4a521b1a84ae1fedede452d1c43',
+  '30203a8319fabe638e82c7316cf46ca0d121857d9eca1d49ba90fd623f55c98e',
+  'b497e9edd1d2bcd037b00b54c90cabb1bf48dd34fe9aa3d3f095c702bbcdce33',
+  '22943bd2e8e1885f48f547fae786561b817b13dac48487fb5ce0e2d8a4727cf4',
+  '7c031a5b6cf08e2912f1b8c37fb9bce29e7ee88e54837f262b0973797a8d59b2'
+]);
 let modpackUnlocked=localStorage.getItem('nv_modpack_unlocked')==='true';
 function renderModpack(){const title=$('#modpackStateTitle'),message=$('#modpackStateMessage'),icon=$('#modpackPageLock'),lockButton=$('#modpackLockButton');if(title)title.textContent=modpackUnlocked?'Modpack unlocked':'Modpack is locked';if(message)message.textContent=modpackUnlocked?'Access granted on this device.':'Click the lock icon beside Modpack in the navigation to enter the 8 digit access code.';if(icon)icon.textContent=modpackUnlocked?'🔓':'🔒';if(lockButton){lockButton.textContent=modpackUnlocked?'🔓':'🔒';lockButton.title=modpackUnlocked?'Modpack unlocked on this device':'Unlock Modpack with access code';lockButton.setAttribute('aria-label',lockButton.title)}}
 function showPage(page){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.page===page));document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active-page',p.id===page))}
@@ -32,7 +42,7 @@ document.querySelectorAll('.nav[data-page]').forEach(b=>b.onclick=()=>showPage(b
 $('#modpackLockButton')?.addEventListener('click',()=>{if(modpackUnlocked){toast('Modpack is already unlocked on this device.');return}modpackDialog.classList.remove('hidden');modpackInput.value='';modpackInput.focus()});
 $('#modpackCodeClose')?.addEventListener('click',()=>modpackDialog.classList.add('hidden'));
 modpackDialog?.querySelector('.gate-backdrop')?.addEventListener('click',()=>modpackDialog.classList.add('hidden'));
-$('#modpackCodeForm')?.addEventListener('submit',async event=>{event.preventDefault();const code=modpackInput.value.trim();if(!/^\d{8}$/.test(code)){toast('Enter all 8 digits.');return}try{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code));const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');if(hash!==modpackCodeHash){toast('That access code is not valid.');modpackInput.select();return}modpackUnlocked=true;localStorage.setItem('nv_modpack_unlocked','true');renderModpack();modpackDialog.classList.add('hidden');showPage('modpack');toast('Modpack section unlocked on this device.')}catch{toast('Could not validate the access code.')}});
+$('#modpackCodeForm')?.addEventListener('submit',async event=>{event.preventDefault();const code=modpackInput.value.trim();if(!/^\d{8}$/.test(code)){toast('Enter all 8 digits.');return}try{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code));const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');if(!modpackCodeHashes.has(hash)){toast('That access code is not valid.');modpackInput.select();return}modpackUnlocked=true;localStorage.setItem('nv_modpack_unlocked','true');renderModpack();modpackDialog.classList.add('hidden');showPage('modpack');toast('Modpack section unlocked on this device.')}catch{toast('Could not validate the access code.')}});
 renderModpack();
 async function refreshLauncherPresence(){const badge=$('#connectedCount');if(!badge)return;if(!linked||member!==true){badge.textContent='0';badge.title='Link Discord and verify Nexa Verse membership to be counted';return}try{const r=await fetch('/api/presence',{method:'POST',cache:'no-store'}),data=await r.json();badge.textContent=String(Number.isFinite(data.connected)?data.connected:0);badge.title=data.scope==='network'?'Players with active Nexa Verse launcher sessions across all devices':'Active sessions on this launcher copy; shared counting service is not configured'}catch{badge.textContent='—';badge.title='Launcher presence service is unavailable'}}
 refresh();setInterval(refresh,15000);refreshLauncherPresence();setInterval(refreshLauncherPresence,20000);
@@ -117,5 +127,6 @@ musicAudio.addEventListener('play',()=>{musicToggle.textContent='Pause';musicTog
 musicAudio.addEventListener('pause',()=>{musicToggle.textContent='Play';musicToggle.setAttribute('aria-label','Play music');if(!musicAudio.ended)setMusicStatus('Paused')});
 renderTrack();playMusic();
 window.launcher?.getVersion().then(version=>{const setting=$('#launcherVersion'),footer=$('#footerVersion');if(setting)setting.textContent=`Nexa Verse • Official build ${version}`;if(footer)footer.textContent=`launcher ${version}`}).catch(()=>{});
+
 
 

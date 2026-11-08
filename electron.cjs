@@ -73,20 +73,29 @@ function publishSocial(data){
 function report(status, detail='') { win?.webContents.send('update-status',{status,detail}); }
 function transientUpdateError(error){return /\b(?:408|429|500|502|503|504)\b|timed?\s*out|ECONN(?:RESET|REFUSED|ABORTED)|ENOTFOUND|EAI_AGAIN|network|socket hang up/i.test(String(error?.message||error||''));}
 let updateCheckInFlight=null;
+const UPDATE_FEEDS=[
+  'https://raw.githubusercontent.com/NEXARYSE/nexa-verse-launcher/publish/v0.5.10/update-feed/',
+  'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'
+];
 async function checkForUpdatesWithRetry(){
   if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the installed launcher build.'};
   if(updateCheckInFlight)return updateCheckInFlight;
   updateCheckInFlight=(async()=>{
-    for(let attempt=0;attempt<3;attempt++){
-      try{await autoUpdater.checkForUpdates();return {status:'checking',detail:'Checking for launcher updates…'};}
-      catch(error){
-        if(!transientUpdateError(error)||attempt===2)return {status:'error',detail:error.message||'Update check failed.'};
-        const delay=2500*(attempt+1);
-        report('checking',`Update service timed out. Retrying in ${Math.ceil(delay/1000)} seconds…`);
-        await new Promise(resolve=>setTimeout(resolve,delay));
+    let lastError;
+    for(const feed of UPDATE_FEEDS){
+      autoUpdater.setFeedURL({provider:'generic',url:feed});
+      for(let attempt=0;attempt<3;attempt++){
+        try{await autoUpdater.checkForUpdates();return {status:'checking',detail:'Checking for launcher updates…'};}
+        catch(error){
+          lastError=error;
+          if(!transientUpdateError(error))return {status:'error',detail:error.message||'Update check failed.'};
+          const delay=1500*(attempt+1);
+          report('checking',`Update service timed out. Retrying ${attempt<2?'the current feed':'the backup feed'} in ${Math.ceil(delay/1000)} seconds…`);
+          await new Promise(resolve=>setTimeout(resolve,delay));
+        }
       }
     }
-    return {status:'error',detail:'Update check failed.'};
+    return {status:'error',detail:lastError?.message||'Update check failed.'};
   })();
   try{return await updateCheckInFlight;}finally{updateCheckInFlight=null;}
 }
@@ -99,7 +108,7 @@ autoUpdater.on('download-progress',p=>report('downloading',`Downloading update �
 autoUpdater.on('update-downloaded',info=>report('ready',`Version ${info.version} is downloaded and ready to install.`));
 autoUpdater.on('error',e=>report(transientUpdateError(e)?'checking':'error',transientUpdateError(e)?'The update service did not respond. Retrying…':e.message || 'Update check failed.'));
 app.whenReady().then(async () => {
-  if(app.isPackaged)autoUpdater.setFeedURL({provider:'generic',url:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'});
+  if(app.isPackaged)autoUpdater.setFeedURL({provider:'generic',url:UPDATE_FEEDS[0]});
   const authFile=path.join(app.getPath('userData'),'discord-session.dat');
   socialAuthFile=path.join(app.getPath('userData'),'discord-social-session.dat');
   const storage={
@@ -168,4 +177,5 @@ app.whenReady().then(async () => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => {isQuitting=true;clearTimeout(discordRpcRetry);setDiscordActivity(false);setTimeout(()=>discordRpcSocket?.destroy(),100);server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
+
 

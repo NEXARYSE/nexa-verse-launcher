@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 'publish/v*'
+    paths-ignore:
+      - 'update-feed/latest.yml'
     tags:
       - 'v*'
 
@@ -46,6 +48,41 @@ jobs:
       - name: Restore binary build assets
         run: node scripts/restore-build-assets.cjs
 
+      - name: Repair invalid playlist assets from the published audio sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $audioFiles = @{
+            'inner-light.mp3' = '1bc8657f1a29b2ded2424a8bc5390f481da702a1b06b21c10cbdfa7476448d17'
+            'kodak.mp3' = '1024324d778b2d45816a115f85b7e364da04886719061518a2ac2d2006c20df8'
+            'bright-lights-big-city.mp3' = 'b773e30e7cda5d4e27513ca2f5367bcadd5bd9e880e3ff4b0863c926f6e51ea8'
+            'se-me-nota.mp3' = '24551b0eb7f9427b1722170137b770b8ee3f5f867f3e566eb1d48498875f5e2a'
+          }
+          $invalid = node -e "const fs=require('fs');for(const f of process.argv.slice(1)){const p='music/'+f;const b=fs.readFileSync(p);if(b.subarray(0,3).toString()!=='ID3'||b.length<1000000)process.exitCode=1}" @($audioFiles.Keys)
+          if ($LASTEXITCODE -eq 0) { Write-Host 'Playlist audio assets are valid.'; exit 0 }
+          $apiHeaders = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
+          $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/NEXARYSE/nexa-verse-launcher/releases/tags/v0.5.15' -Headers $apiHeaders
+          foreach ($name in $audioFiles.Keys) {
+            $asset = $release.assets | Where-Object name -eq $name | Select-Object -First 1
+            if (-not $asset) { throw "Published audio source is missing: $name" }
+            $destination = Join-Path 'music' $name
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              try {
+                $downloadHeaders = $apiHeaders.Clone()
+                $downloadHeaders.Accept = 'application/octet-stream'
+                Invoke-WebRequest -Uri $asset.url -Headers $downloadHeaders -OutFile $destination
+                if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $audioFiles[$name]) { throw "Downloaded audio asset failed its integrity check: $name" }
+                break
+              } catch {
+                Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+                if ($attempt -eq 3) { throw }
+                Start-Sleep -Seconds (5 * $attempt)
+              }
+            }
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and publish the Windows installer and update metadata
         shell: pwsh
         run: |
@@ -63,4 +100,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\electron-builder-cache
           DEBUG: electron-builder
+      - name: Publish stable updater manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = node -p "require('./package.json').version"
+          $manifestPath = 'dist/latest.yml'
+          if (-not (Test-Path $manifestPath)) { throw "electron-builder did not produce $manifestPath" }
+          $installerUrl = "https://github.com/NEXARYSE/nexa-verse-launcher/releases/download/v$version/NEXAVERSE-LAUNCHER.exe"
+          $manifest = Get-Content $manifestPath -Raw
+          $manifest = [regex]::Replace($manifest, '(?m)^([ \t]*-[ \t]*url:[ \t]*).+$', "`$1$installerUrl")
+          $feedTemp = Join-Path $env:RUNNER_TEMP 'latest.yml'
+          Set-Content -Path $feedTemp -Value $manifest -NoNewline -Encoding utf8
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin publish/v0.5.10
+          git switch -C updater-feed FETCH_HEAD
+          New-Item -ItemType Directory -Force -Path 'update-feed' | Out-Null
+          Copy-Item -LiteralPath $feedTemp -Destination 'update-feed/latest.yml' -Force
+          git add update-feed/latest.yml
+          if (git diff --cached --quiet) { Write-Host 'Stable updater manifest is already current.'; exit 0 }
+          git commit -m "Publish stable updater manifest for v$version"
+          git push origin HEAD:refs/heads/publish/v0.5.10
+
 
