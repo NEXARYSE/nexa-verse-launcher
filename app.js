@@ -80,10 +80,12 @@ window.launcher?.getSocialState().then(applySocialState).catch(()=>{});
 
 // Audio-only playlist. Licensed MP3 files are packaged under ./music/.
 const soundtrack=[
-  {file:'/music/gta6-theme.mp3',name:'GTA 6 Official Theme'},
+  {file:'/music/inner-light.mp3',name:'Inner Light — Elderbrook & Bob Moses'},
   {file:'/music/captain-tennille-dream.mp3',name:'But I Think It’s a Dream — Captain & Tennille'},
+  {file:'/music/gta6-theme.mp3',name:'GTA 6 Official Theme'},
   {file:'/music/se-me-nota.mp3',name:'Se Me Nota (Agarrame) — Chimbala x Omega'},
-  {file:'/music/bright-lights-big-city.mp3',name:'Bright Lights, Big City — Keith Richards'}
+  {file:'/music/bright-lights-big-city.mp3',name:'Bright Lights, Big City — Keith Richards'},
+  {file:'/music/kodak.mp3',name:'Skrilla — Kodak Black'}
 ];
 const musicAudio=$('#musicAudio'),musicToggle=$('#musicToggle'),musicStatus=$('#musicStatus'),musicVolume=$('#musicVolume'),musicVolumeValue=$('#musicVolumeValue'),currentTrackName=$('#currentTrackName');
 let currentTrackIndex=0;
@@ -101,4 +103,5 @@ musicAudio.addEventListener('error',()=>{musicToggle.textContent='Play';musicTog
 musicAudio.addEventListener('play',()=>{musicToggle.textContent='Pause';musicToggle.setAttribute('aria-label','Pause music');setMusicStatus('Now playing')});
 musicAudio.addEventListener('pause',()=>{musicToggle.textContent='Play';musicToggle.setAttribute('aria-label','Play music');if(!musicAudio.ended)setMusicStatus('Paused')});
 renderTrack();playMusic();
+window.launcher?.getVersion().then(version=>{const setting=$('#launcherVersion'),footer=$('#footerVersion');if(setting)setting.textContent=`Nexa Verse • Official build ${version}`;if(footer)footer.textContent=`launcher ${version}`}).catch(()=>{});
 

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('launcher', {
   launchDS4Windows: () => ipcRenderer.invoke('launch-ds4windows'),
   openExternal: url => ipcRenderer.invoke('open-external',url),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
+  getVersion: () => ipcRenderer.invoke('app-version'),
   getSocialState: () => ipcRenderer.invoke('social-state'),
   setDiscordActivity: enabled => ipcRenderer.invoke('set-discord-activity',enabled),
   connectSocial: () => ipcRenderer.invoke('connect-social'),

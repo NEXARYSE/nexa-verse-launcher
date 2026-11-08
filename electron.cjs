@@ -71,6 +71,25 @@ function publishSocial(data){
   win?.webContents.send('social-event',data);
 }
 function report(status, detail='') { win?.webContents.send('update-status',{status,detail}); }
+function transientUpdateError(error){return /\b(?:408|429|500|502|503|504)\b|timed?\s*out|ECONN(?:RESET|REFUSED|ABORTED)|ENOTFOUND|EAI_AGAIN|network|socket hang up/i.test(String(error?.message||error||''));}
+let updateCheckInFlight=null;
+async function checkForUpdatesWithRetry(){
+  if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the installed launcher build.'};
+  if(updateCheckInFlight)return updateCheckInFlight;
+  updateCheckInFlight=(async()=>{
+    for(let attempt=0;attempt<3;attempt++){
+      try{await autoUpdater.checkForUpdates();return {status:'checking',detail:'Checking for launcher updates…'};}
+      catch(error){
+        if(!transientUpdateError(error)||attempt===2)return {status:'error',detail:error.message||'Update check failed.'};
+        const delay=2500*(attempt+1);
+        report('checking',`Update service timed out. Retrying in ${Math.ceil(delay/1000)} seconds…`);
+        await new Promise(resolve=>setTimeout(resolve,delay));
+      }
+    }
+    return {status:'error',detail:'Update check failed.'};
+  })();
+  try{return await updateCheckInFlight;}finally{updateCheckInFlight=null;}
+}
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.on('checking-for-update',()=>report('checking','Checking for launcher updates…'));
@@ -78,8 +97,9 @@ autoUpdater.on('update-available',info=>report('downloading',`Version ${info.ver
 autoUpdater.on('update-not-available',()=>report('current','You’re on the latest version.'));
 autoUpdater.on('download-progress',p=>report('downloading',`Downloading update · ${Math.round(p.percent)}%`));
 autoUpdater.on('update-downloaded',info=>report('ready',`Version ${info.version} is downloaded and ready to install.`));
-autoUpdater.on('error',e=>report('error',e.message || 'Update check failed.'));
+autoUpdater.on('error',e=>report(transientUpdateError(e)?'checking':'error',transientUpdateError(e)?'The update service did not respond. Retrying…':e.message || 'Update check failed.'));
 app.whenReady().then(async () => {
+  if(app.isPackaged)autoUpdater.setFeedURL({provider:'generic',url:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'});
   const authFile=path.join(app.getPath('userData'),'discord-session.dat');
   socialAuthFile=path.join(app.getPath('userData'),'discord-social-session.dat');
   const storage={
@@ -88,6 +108,7 @@ app.whenReady().then(async () => {
     clear(){try{fs.rmSync(authFile,{force:true})}catch{}}
   };
   server = await startServer(4317,storage);
+  ipcMain.handle('app-version',()=>app.getVersion());
   win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1050, minHeight: 720, backgroundColor: '#080b18', title: 'NEXA VERSE LAUNCHER', icon:path.join(__dirname,'nexa-icon.ico'), autoHideMenuBar: true,
     webPreferences: { preload: require('node:path').join(__dirname,'preload.cjs'), nodeIntegration: false, contextIsolation: true, partition:'persist:nexa-verse-launcher' } });
   ipcMain.handle('pick-folder', async () => { const result=await dialog.showOpenDialog(win,{properties:['openDirectory']}); return result.canceled ? null : result.filePaths[0]; });
@@ -113,7 +134,7 @@ app.whenReady().then(async () => {
     socialBridge.stdin.write('REFRESH_FRIENDS\n');return {ok:true};
   });
   ipcMain.handle('open-external', async (_, value) => { const url=new URL(value); if(url.protocol!=='https:'||url.hostname!=='discord.com')throw new Error('Only Discord authorization links can be opened.'); return shell.openExternal(url.toString()); });
-  ipcMain.handle('check-updates', async () => { if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the installed launcher build.'}; try { await autoUpdater.checkForUpdates(); return {status:'checking',detail:'Checking for launcher updates…'} } catch(e){return {status:'error',detail:e.message}} });
+  ipcMain.handle('check-updates',()=>checkForUpdatesWithRetry());
   ipcMain.on('install-update',()=>autoUpdater.quitAndInstall());
   const socialExe=app.isPackaged?path.join(process.resourcesPath,'native','social-bridge.exe'):path.join(__dirname,'native','social-bridge.exe');
   if(fs.existsSync(socialExe)){
@@ -143,7 +164,7 @@ app.whenReady().then(async () => {
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.loadURL('http://127.0.0.1:4317');
   connectDiscordRpc();
-  if(app.isPackaged) setTimeout(()=>autoUpdater.checkForUpdates().catch(e=>report('error',e.message)),2500);
+  if(app.isPackaged) setTimeout(()=>checkForUpdatesWithRetry().then(result=>{if(result.status==='error')report('error',result.detail)}),2500);
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => {isQuitting=true;clearTimeout(discordRpcRetry);setDiscordActivity(false);setTimeout(()=>discordRpcSocket?.destroy(),100);server?.close();try{socialBridge?.stdin.write('QUIT\n')}catch{}});
