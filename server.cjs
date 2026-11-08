@@ -47,12 +47,12 @@ async function refreshIfNeeded(session, persist, force=false) {
 }
 async function memberCheck(session, persist, force=false) {
   await refreshIfNeeded(session,persist);
-  if (!force && Date.now()-session.checkedAt < 120000) return session.member;
+  if (!force && Date.now()-session.checkedAt < 30000) return session.member;
   let response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});
   if(response.status===401){await refreshIfNeeded(session,persist,true);response=await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`,{headers:{Authorization:`Bearer ${session.accessToken}`},signal:AbortSignal.timeout(10000)});}
   session.checkedAt=Date.now();
   if(response.ok){const details=await response.json();session.roleIds=Array.isArray(details.roles)?details.roles:[];session.member=true;persist?.();return true;}
-  if(response.status===404){session.member=false;session.roleIds=[];persist?.();return false;}
+  if(response.status===404)return session.member=false;
   throw new Error(`Membership check failed (${response.status})`);
 }
 function normalizeRoleMetadata(data){
@@ -175,7 +175,7 @@ function startServer(port=4317, storage={}) {
       }
       if(url.pathname==='/api/play'){
         const sid=cookies(req).nv_session,session=sessions.get(sid);if(!session)return send(res,403,JSON.stringify({error:'Link Discord and join the Nexa Verse server before playing.'}));
-        let member;try{member=await memberCheck(session,()=>persist(sid,session),false)}catch{return send(res,503,JSON.stringify({error:'Could not verify server membership. Try again shortly.'}));}
+        let member;try{member=await memberCheck(session,()=>persist(sid,session),true)}catch{return send(res,503,JSON.stringify({error:'Could not verify server membership. Try again shortly.'}));}
         if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server to access the launcher.'}));
         return send(res,200,JSON.stringify({ok:true,message:'Discord linked and Nexa Verse membership verified. Configure the game launch command to start playing.'}));
       }
