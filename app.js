@@ -76,7 +76,7 @@ const soundtrack=[{id:'aonTwBM1AZM',name:'GTA 6 - Official Main Theme Music'},{i
 const musicPanel=$('#musicPlayerPanel'),musicToggle=$('#musicToggle'),musicClose=$('#musicClose'),musicStatus=$('#musicStatus'),musicVolume=$('#musicVolume'),musicVolumeValue=$('#musicVolumeValue'),musicError=$('#musicError');
 const currentTrackName=$('#currentTrackName'),dockTrackName=$('#dockTrackName');
 let ytPlayer=null,ytApiLoading=false,ytPlayerReady=false,currentTrackIndex=0,skipPending=false;
-const savedVolume=Number(localStorage.getItem('nv_music_volume'));
+const savedVolumeRaw=localStorage.getItem('nv_music_volume'),savedVolume=savedVolumeRaw===null?35:Number(savedVolumeRaw);
 if(Number.isFinite(savedVolume)&&savedVolume>=0&&savedVolume<=100){musicVolume.value=String(savedVolume);musicVolumeValue.textContent=`${savedVolume}%`}
 function showTrack(){const name=soundtrack[currentTrackIndex].name;currentTrackName.textContent=name;dockTrackName.textContent=name;currentTrackName.title=name;dockTrackName.title=name}
 function setMusicOpen(open){musicPanel.classList.toggle('hidden',!open);musicClose.classList.toggle('hidden',!open);musicToggle.textContent=open?'Hide player':'Open player';musicToggle.setAttribute('aria-label',open?'Hide music player':'Open music player');if(open&&!ytPlayer&&!ytApiLoading)loadYouTubePlayer();if(!open&&ytPlayer&&ytPlayer.getPlayerState?.()===1){ytPlayer.pauseVideo();musicStatus.textContent='Paused';}}
