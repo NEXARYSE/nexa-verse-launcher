@@ -1,0 +1,27 @@
+.friend-list{display:flex;flex-direction:column;gap:12px;max-height:none;overflow:visible;padding:0}
+#socialPanel .friend-empty-icon{padding:0;background:transparent;border:0;overflow:hidden}
+.friend-empty-icon img{display:block;width:100%;height:100%;padding:2px;object-fit:contain;border-radius:inherit}
+#socialPanel.social-ready{box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:12px 16px;padding:12px 18px;text-align:left;overflow:visible}
+#socialPanel.social-ready{display:grid;grid-template-columns:44px minmax(0,max-content) minmax(0,1fr) max-content;grid-template-rows:minmax(40px,auto);column-gap:14px;row-gap:8px;align-items:center;padding:10px 16px}
+#socialPanel.social-ready .friend-empty-icon{box-sizing:border-box;grid-column:1;grid-row:1;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;overflow:visible;border-radius:12px}
+#socialPanel.social-ready .friend-empty-icon img{box-sizing:border-box;width:100%;height:100%;padding:3px;object-fit:contain;object-position:center;border-radius:10px}
+#socialPanel.social-ready>b{grid-column:2;grid-row:1;min-width:0;white-space:normal;overflow-wrap:anywhere}
+#socialPanel.social-ready p{grid-column:3;grid-row:1;min-width:0;margin:0;color:#b9bed0;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+#socialPanel.social-ready button{grid-column:4;grid-row:1;box-sizing:border-box;min-width:122px;max-width:100%;min-height:38px;padding:9px 14px;white-space:nowrap;justify-self:end}
+.social-cards{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:12px;max-height:calc(100vh - 440px);min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px 4px 2px;scrollbar-width:thin;scrollbar-color:#7188df #171025}
+.social-friend{min-width:0;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #684f9988;border-radius:16px;background:linear-gradient(120deg,#17152beF,#191023eF);box-shadow:0 8px 24px #0003}
+.social-avatar{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,#4266db,#c93fb3);font-weight:800;font-size:18px}
+.social-avatar img{width:100%;height:100%;object-fit:cover}
+.social-friend-info{min-width:0;display:flex;flex:1;flex-direction:column;gap:3px}
+.social-friend-info b,.social-friend-info small,.social-activity{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.social-friend-info b{font-size:14px}
+.social-friend-info small{color:#aaaec3;font-size:11px}
+.social-activity{color:#ddd7ed;font-size:11px;margin-top:3px}
+.social-presence{flex:0 0 auto;padding:5px 8px;border-radius:12px;background:#ffffff0b;color:#b9bed0;font-size:10px}
+.social-presence[data-status="online"],.social-presence[data-status="streaming"]{background:#31d9ad1c;color:#47e4b5}
+.social-presence[data-status="idle"]{background:#f0b84a20;color:#f1bd5b}
+.social-presence[data-status="do-not-disturb"]{background:#f0557320;color:#ff7185}
+@media(max-width:850px){.social-cards{grid-template-columns:1fr;max-height:calc(100vh - 420px)}}
+@media(max-height:720px){.social-cards{max-height:calc(100vh - 380px)}}
+@media(max-width:700px){#socialPanel.social-ready{grid-template-columns:44px minmax(0,1fr) max-content;grid-template-rows:auto auto;column-gap:12px;row-gap:8px;padding:10px 12px}#socialPanel.social-ready .friend-empty-icon{grid-column:1;grid-row:1}#socialPanel.social-ready>b{grid-column:2;grid-row:1}#socialPanel.social-ready p{grid-column:2 / 4;grid-row:2;padding-right:2px}#socialPanel.social-ready button{grid-column:3;grid-row:1;min-width:0;padding:8px 10px}}
+@media(max-width:420px){#socialPanel.social-ready{grid-template-columns:40px minmax(0,1fr);column-gap:10px}#socialPanel.social-ready .friend-empty-icon{width:40px;height:40px;min-width:40px;min-height:40px}#socialPanel.social-ready>b{grid-column:2;grid-row:1}#socialPanel.social-ready p{grid-column:1 / 3;grid-row:2;padding:0}#socialPanel.social-ready button{grid-column:1 / 3;grid-row:3;justify-self:stretch;width:100%}}

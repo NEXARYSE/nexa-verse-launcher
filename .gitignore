@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.electron-cache/
+.electron-builder-cache/
+.pnpm-store/
+.tmp/
+*.obj
+NEXA VERSE LAUNCHER.exe
