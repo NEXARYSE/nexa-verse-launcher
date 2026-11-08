@@ -52,8 +52,9 @@ function applySocialState(next){
     const info=document.createElement('div');info.className='social-friend-info';
     const name=document.createElement('b');name.textContent=friend.name||friend.username||'Discord friend';
     const handle=document.createElement('small');handle.textContent=friend.username?`@${friend.username}`:'Discord friend';
-    const activity=document.createElement('span');activity.className='social-activity';activity.textContent=[friend.activity,friend.details,friend.state].filter(Boolean).join(' · ')||'No current activity';
-    info.append(name,handle,activity);
+    const completionValue=Number(friend.completionPercent??friend.completion_percent??0);const trophyValue=Number(friend.trophiesEarned??friend.trophies_earned??0);const completion=Number.isFinite(completionValue)?Math.max(0,Math.min(100,Math.round(completionValue))):0;const trophies=Number.isFinite(trophyValue)?Math.max(0,Math.floor(trophyValue)):0;
+    const progress=document.createElement('div');progress.className='social-progress';const completionLabel=document.createElement('span');completionLabel.textContent=`COMPLETION ${completion}%`;const trophiesLabel=document.createElement('span');trophiesLabel.textContent=`TROPHIES EARNED ${trophies}`;progress.append(completionLabel,trophiesLabel);
+    info.append(name,handle,progress);
     const state=document.createElement('span');state.className='social-presence';state.dataset.status=(friend.status||'offline').toLowerCase().replaceAll(' ','-');state.textContent=friend.status||'Offline';
     card.append(avatar,info,state);cards.append(card);
   }
