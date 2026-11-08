@@ -11,6 +11,6 @@ contextBridge.exposeInMainWorld('launcher', {
   onSocialEvent: callback => ipcRenderer.on('social-event',(_,data)=>callback(data)),
   installUpdate: () => ipcRenderer.send('install-update'),
   onUpdateStatus: callback => ipcRenderer.on('update-status',(_,data)=>callback(data)),
-  windowAction: action => ipcRenderer.send('window-action', action)
 });
+
 

@@ -115,7 +115,6 @@ app.whenReady().then(async () => {
   ipcMain.handle('open-external', async (_, value) => { const url=new URL(value); if(url.protocol!=='https:'||url.hostname!=='discord.com')throw new Error('Only Discord authorization links can be opened.'); return shell.openExternal(url.toString()); });
   ipcMain.handle('check-updates', async () => { if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the installed launcher build.'}; try { await autoUpdater.checkForUpdates(); return {status:'checking',detail:'Checking for launcher updates…'} } catch(e){return {status:'error',detail:e.message}} });
   ipcMain.on('install-update',()=>autoUpdater.quitAndInstall());
-  ipcMain.on('window-action',(_,action)=>{ if(action==='minimize')win.minimize(); if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize(); if(action==='close')win.close(); });
   const socialExe=app.isPackaged?path.join(process.resourcesPath,'native','social-bridge.exe'):path.join(__dirname,'native','social-bridge.exe');
   if(fs.existsSync(socialExe)){
     socialBridge=spawn(socialExe,[],{cwd:path.dirname(socialExe),windowsHide:true,stdio:['pipe','pipe','pipe']});
