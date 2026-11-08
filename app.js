@@ -138,3 +138,51 @@ window.launcher?.getVersion().then(version=>{const setting=$('#launcherVersion')
 
 
 
+
+
+const controllerTestDialog=$('#controllerTestDialog');
+let controllerTesterActive=false,controllerTesterFrame=0,controllerTesterPadIndex=null;
+const standardButtonNames=['A / Cross','B / Circle','X / Square','Y / Triangle','LB / L1','RB / R1','LT / L2','RT / R2','View / Share','Menu / Options','Left stick click','Right stick click','D-pad Up','D-pad Down','D-pad Left','D-pad Right','Home'];
+function controllerTestPads(){return Array.from(navigator.getGamepads?.()||[]).filter(p=>p&&p.connected)}
+function closeControllerTester(){controllerTesterActive=false;if(controllerTesterFrame)cancelAnimationFrame(controllerTesterFrame);controllerTesterFrame=0;controllerTestDialog.hidden=true;$('#controllerTestBtn')?.focus()}
+function ensureControllerTestRows(container,count,kind){while(container.children.length<count){const row=document.createElement('div');row.className=kind==='button'?'test-button':'test-axis';row.innerHTML=kind==='button'?'<span class="test-button-name"></span><span class="test-button-state">OFF</span><span class="test-button-fill"><i></i></span>':'<span class="test-axis-name"></span><span class="test-axis-meter"><i></i></span><span class="test-axis-value">0.00</span>';container.append(row)}while(container.children.length>count)container.lastElementChild.remove()}
+function renderControllerTestFrame(){
+ if(!controllerTesterActive)return;
+ const pads=controllerTestPads(),select=$('#controllerTestSelect'),status=$('#controllerTestStatus'),key=p=>String(p.index)+':'+p.id,oldKey=select.value;
+ if(select.options.length!==pads.length||pads.some((p,i)=>select.options[i]?.value!==key(p))){select.replaceChildren(...pads.map(p=>{const o=document.createElement('option');o.value=key(p);o.textContent=p.id||('Controller '+(p.index+1));return o}));if(pads.some(p=>key(p)===oldKey))select.value=oldKey}
+ select.hidden=pads.length<2;
+ if(!pads.length){controllerTesterPadIndex=null;status.textContent='No controller detected · press any controller button to connect';ensureControllerTestRows($('#controllerTestButtons'),0,'button');ensureControllerTestRows($('#controllerTestAxes'),0,'axis');for(const side of ['left','right']){$('[data-stick="'+side+'"] span').style.left='50%';$('[data-stick="'+side+'"] span').style.top='50%';$('[data-stick-value="'+side+'"]').textContent='X 0.00 · Y 0.00'}controllerTesterFrame=requestAnimationFrame(renderControllerTestFrame);return}
+ let pad=pads.find(p=>key(p)===select.value);if(!pad){pad=pads.find(p=>p.index===controllerTesterPadIndex)||pads[0];select.value=key(pad)}controllerTesterPadIndex=pad.index;status.textContent='Connected · '+(pad.id||('Controller '+(pad.index+1)))+' · '+pad.buttons.length+' buttons';
+ const buttons=$('#controllerTestButtons');ensureControllerTestRows(buttons,pad.buttons.length,'button');pad.buttons.forEach((button,i)=>{const row=buttons.children[i],name=row.querySelector('.test-button-name'),fill=row.querySelector('.test-button-fill i'),pressed=button.pressed||button.value>.5;name.textContent=pad.mapping==='standard'?(standardButtonNames[i]||('Button '+(i+1))):('Button '+(i+1));row.classList.toggle('active',pressed);row.querySelector('.test-button-state').textContent=pressed?Math.round(button.value*100)+'%':'OFF';fill.style.width=Math.round(button.value*100)+'%'});
+ const axes=$('#controllerTestAxes');ensureControllerTestRows(axes,pad.axes.length,'axis');pad.axes.forEach((value,i)=>{const row=axes.children[i];row.querySelector('.test-axis-name').textContent='Axis '+(i+1);row.querySelector('.test-axis-value').textContent=(value||0).toFixed(2);row.querySelector('.test-axis-meter i').style.left=Math.max(0,Math.min(100,((value||0)+1)*50))+'%'});
+ for(const [side,index] of [['left',0],['right',2]]){const x=pad.axes[index]||0,y=pad.axes[index+1]||0,dot=$('[data-stick="'+side+'"] span');dot.style.left=(50+x*43)+'%';dot.style.top=(50+y*43)+'%';$('[data-stick-value="'+side+'"]').textContent='X '+x.toFixed(2)+' · Y '+y.toFixed(2)}
+ controllerTesterFrame=requestAnimationFrame(renderControllerTestFrame)
+}
+$('#controllerTestBtn')?.addEventListener('click',()=>{controllerTesterActive=true;controllerTesterPadIndex=null;controllerTestDialog.hidden=false;renderControllerTestFrame();$('#controllerTestClose').focus()});
+$('#controllerTestClose')?.addEventListener('click',closeControllerTester);
+controllerTestDialog?.querySelector('.controller-test-backdrop')?.addEventListener('click',closeControllerTester);
+$('#controllerTestSelect')?.addEventListener('change',()=>{controllerTesterPadIndex=null});
+window.addEventListener('gamepadconnected',()=>{if(controllerTesterActive)renderControllerTestFrame()});
+window.addEventListener('keydown',event=>{if(event.key==='Escape'&&controllerTesterActive)closeControllerTester()});
+let gamepadNavPrevious=[],gamepadNavRepeatAt=0;
+function moveControllerFocus(direction){
+ const selector='button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex]:not([tabindex="-1"])';
+ const items=Array.from(document.querySelectorAll(selector)).filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+ if(!items.length)return;const current=document.activeElement,rect=current?.getBoundingClientRect?.();let next=null;
+ if(rect&&items.includes(current)){const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;let best=Infinity;for(const item of items){if(item===current)continue;const r=item.getBoundingClientRect(),dx=r.left+r.width/2-cx,dy=r.top+r.height/2-cy,primary=direction==='left'?-dx:direction==='right'?dx:direction==='up'?-dy:dy;if(primary<=4)continue;const secondary=direction==='left'||direction==='right'?Math.abs(dy):Math.abs(dx),score=primary+secondary*2;if(score<best){best=score;next=item}}}
+ if(!next){const index=items.indexOf(current);next=items[(index+(direction==='left'||direction==='up'?-1:1)+items.length)%items.length]}
+ next?.focus({preventScroll:false})
+}
+function stepControllerTab(delta){const tabs=Array.from(document.querySelectorAll('.nav[data-page]'));if(!tabs.length)return;let current=tabs.findIndex(tab=>tab.classList.contains('active'));current=(current+delta+tabs.length)%tabs.length;tabs[current].click();tabs[current].focus()}
+function pollControllerNavigation(){
+ const pad=controllerTestPads()[0];if(!pad||!document.hasFocus()){gamepadNavPrevious=[];return}
+ const prev=gamepadNavPrevious[pad.index]||[],pressed=i=>!!(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.6),edge=i=>pressed(i)&&!prev[i],now=Date.now();
+ if(controllerTesterActive){if(edge(1))closeControllerTester();else{const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.55],['right',15,x>.55],['up',12,y<-.55],['down',13,y>.55]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+260;break}}}
+ else{
+  if(edge(4))stepControllerTab(-1);if(edge(5))stepControllerTab(1);
+  const typing=document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]');
+  if(!typing){if(edge(0)&&document.activeElement?.click)document.activeElement.click();if(edge(1)){const active=document.querySelector('.page.active-page');if(active?.id!=='play'){$('.nav[data-page="play"]')?.click();$('.nav[data-page="play"]')?.focus()}else document.activeElement?.blur?.()}
+   const x=pad.axes[0]||0,y=pad.axes[1]||0;for(const [name,index,analog] of [['left',14,x<-.55],['right',15,x>.55],['up',12,y<-.55],['down',13,y>.55]])if((edge(index)||analog)&&now>=gamepadNavRepeatAt){moveControllerFocus(name);gamepadNavRepeatAt=now+260;break}}
+ }
+ gamepadNavPrevious[pad.index]=pad.buttons.map(button=>!!(button.pressed||button.value>.6))
+}
