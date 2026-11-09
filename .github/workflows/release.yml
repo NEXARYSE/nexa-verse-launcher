@@ -38,7 +38,7 @@ jobs:
       - name: Restore binary build assets
         run: node scripts/restore-build-assets.cjs
 
-      - name: Build and publish the Windows installer and update metadata
-        run: pnpm exec electron-builder --win nsis --x64 --publish always
+      - name: Build and publish the portable Windows launcher
+        run: pnpm exec electron-builder --win portable --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
