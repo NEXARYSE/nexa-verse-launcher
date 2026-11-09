@@ -96,7 +96,7 @@ export class PresenceCounter {
       if (!/^[a-f0-9]{64}$/.test(payload.userHash || '')) return Response.json({ error: 'Invalid account identifier' }, { status: 400 });
       const sql = this.state.storage.sql;
       if (payload.action === 'list') {
-        const rows = sql.exec('SELECT username, display_name, playtime_seconds, trophies_earned, completion_percent, (trophies_earned * 100 + CAST(playtime_seconds / 3600 AS INTEGER)) AS score FROM launcher_leaderboard ORDER BY score DESC, updated_at ASC LIMIT 10').toArray();
+        const rows = sql.exec('SELECT username, display_name, playtime_seconds, trophies_earned, completion_percent, (trophies_earned * 100 + CAST(playtime_seconds / 3600 AS INTEGER)) AS score FROM launcher_leaderboard ORDER BY score DESC, trophies_earned DESC, playtime_seconds DESC, username COLLATE NOCASE ASC LIMIT 10').toArray();
         return Response.json({ entries: rows.map((row, index) => ({ rank: index + 1, username: row.username, displayName: `@${row.username}`, name: row.display_name, playtimeSeconds: row.playtime_seconds, trophiesEarned: row.trophies_earned, completionPercent: row.completion_percent, score: row.score })) });
       }
       if (payload.action !== 'update' || !/^[a-zA-Z0-9_.]{1,32}$/.test(payload.username || '') || !Number.isSafeInteger(payload.playtimeSeconds) || payload.playtimeSeconds < 0 || payload.playtimeSeconds > 315360000 || !Number.isSafeInteger(payload.trophiesEarned) || payload.trophiesEarned < 0 || payload.trophiesEarned > 55 || !Number.isFinite(payload.completionPercent) || payload.completionPercent < 0 || payload.completionPercent > 100) return Response.json({ error: 'Invalid leaderboard update' }, { status: 400 });
