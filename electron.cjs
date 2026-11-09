@@ -24,6 +24,17 @@ autoUpdater.on('download-progress',p=>report('downloading',`Downloading update Â
 autoUpdater.on('update-downloaded',info=>report('ready',`Version ${info.version} is downloaded and ready to install.`));
 autoUpdater.on('error',e=>report('error',e.message || 'Update check failed.'));
 app.whenReady().then(async () => {
+  if(app.isPackaged&&process.platform==='win32'){
+    try{
+      const shortcut=path.join(app.getPath('desktop'),'NEXAVERSE LAUNCHER.lnk');
+      const target=path.resolve(process.env.PORTABLE_EXECUTABLE_FILE||app.getPath('exe'));
+      const shortcutOptions={target,description:'Nexa Verse Launcher',icon:target,iconIndex:0};
+      if(fs.existsSync(shortcut)){
+        const current=shell.readShortcutLink(shortcut);
+        if(path.resolve(current.target)!==target)shell.writeShortcutLink(shortcut,'update',shortcutOptions);
+      }else shell.writeShortcutLink(shortcut,'create',shortcutOptions);
+    }catch(error){console.warn(`Could not create the Nexa Verse desktop shortcut: ${error.message}`)}
+  }
   const authFile=path.join(app.getPath('userData'),'discord-session.dat');
   socialAuthFile=path.join(app.getPath('userData'),'discord-social-session.dat');
   const storage={
