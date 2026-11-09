@@ -42,7 +42,7 @@ function renderModpack(){const title=$('#modpackStateTitle'),message=$('#modpack
 const modpackDialog=$('#modpackCodeDialog'),modpackInput=$('#modpackCodeInput');
 $('#leaderboardRefresh')?.addEventListener('click',()=>syncLeaderboard(true));
 setInterval(async()=>{try{if(await window.launcher?.isGameRunning()){playerProgress.playtimeSeconds+=60;persistProgress();await syncLeaderboard(false)}}catch{}},60_000);
-document.querySelectorAll('.nav[data-page],.dock-tile[data-page]').forEach(b=>b.onclick=()=>{showPage(b.dataset.page);if(b.dataset.page==='friends')syncLeaderboard(true)});
+document.querySelectorAll('.nav[data-page]').forEach(b=>b.onclick=()=>{showPage(b.dataset.page);if(b.dataset.page==='friends')syncLeaderboard(true)});
 $('#modpackLockButton')?.addEventListener('click',()=>{if(modpackUnlocked){toast('Modpack is already unlocked on this device.');return}modpackDialog.classList.remove('hidden');modpackInput.value='';modpackInput.focus()});
 $('#modpackCodeClose')?.addEventListener('click',()=>modpackDialog.classList.add('hidden'));
 modpackDialog?.querySelector('.gate-backdrop')?.addEventListener('click',()=>modpackDialog.classList.add('hidden'));

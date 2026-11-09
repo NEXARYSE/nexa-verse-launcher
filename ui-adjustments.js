@@ -123,6 +123,7 @@
   dock?.querySelectorAll('.dock-tile').forEach(tile => {
     tile.addEventListener('click', event => {
       event.preventDefault();
+      event.stopImmediatePropagation();
       if (selectedTile === tile && !contextMenu) openTileMenu(tile);
       else {
         closeTileMenu(true);

@@ -68,6 +68,85 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 @media(max-width:850px){.home-dock,.hero,.launch-row,.install-strip,.home-panels,.updates-panel,.logs-link{width:94%}.home-dock{gap:8px;margin-top:12px}.dock-tile{width:72px;height:72px;flex-basis:72px}.hero{margin-top:6px;height:310px;min-height:280px}.updates-panel{height:auto;max-height:none}.update-preview-link{flex-basis:78vw;height:38vw;max-height:170px}}
 @media(prefers-reduced-motion:reduce){.dock-tile{transition:none}}
 
+/* Console home screen composition: tile shelf, full-width game artwork, and a bottom news rail. */
+#play{overflow-y:auto;scrollbar-color:#7655c9 #080b18;background:radial-gradient(ellipse at 70% 14%,#173d64 0,#10162e 48%,#080a18 100%);padding:0 0 20px}
+.topbar{height:68px;flex:0 0 68px;gap:34px;padding:0 4%;border-bottom:1px solid #7594ce26;background:linear-gradient(90deg,#07101eeF,#0e1227e8);backdrop-filter:blur(18px)}
+.brand{min-width:205px}.brand-mark{width:40px;height:40px;border:0;border-radius:11px;box-shadow:0 0 15px #d94bff42}.brand-name{font-size:18px}
+.topbar nav{gap:24px}.topbar .nav{font-size:14px;letter-spacing:.15px}.topbar .nav[data-page="friends"],.topbar .trophy-nav,.topbar .modpack-nav{display:none}
+.topbar .current-track{margin-left:10px;max-width:265px;min-width:180px;padding-left:12px;border-left-color:#9db9ef38}.current-track-label{color:#f3c954}.topbar .right{gap:14px}.server{border-color:#71a9df50;background:#ffffff08}
+.home-dock{width:min(94%,1660px);margin:15px auto 0;padding:4px 5px 25px;gap:13px;overflow:visible;align-items:flex-start}
+.dock-tile{position:relative;width:92px;height:92px;flex:0 0 92px;padding:6px;border:1px solid #ffffff16;border-radius:17px;background:linear-gradient(145deg,#111a2bf2,#090f1df2);box-shadow:0 8px 26px #0005;overflow:visible}
+.dock-tile>.dock-art,.dock-tile>img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:12px;filter:none}
+.discord-dock img{object-fit:cover;border-radius:12px}.dock-tile>span:last-child:not(.dock-icon){position:absolute;top:calc(100% + 5px);left:50%;display:none;transform:translateX(-50%);font-size:12px;font-weight:500;color:#fff;text-shadow:0 2px 8px #000;white-space:nowrap}
+.dock-tile.selected{transform:translateY(-3px) scale(1.06);border-color:#8cc8ffbb;background:linear-gradient(145deg,#192c4a,#11172e);box-shadow:0 12px 30px #2179e744,0 0 20px #ed59bc32}
+.dock-tile.selected>span:last-child:not(.dock-icon){display:block}
+.dock-icon{width:100%;height:100%;border-radius:12px;background:linear-gradient(135deg,#398cff,#8054ed 52%,#e348b7 82%,#e9a93e);box-shadow:none}.dock-icon svg{width:44px;height:44px}
+.dock-lock{align-self:center;flex:0 0 34px;width:34px;height:38px;margin:0 0 5px -8px;padding:0!important;border:1px solid #8f78c25c!important;border-radius:10px;background:#11182beF!important;color:#ffd66d!important;font-size:15px!important}
+.hero{width:100%;height:clamp(390px,52vh,610px);min-height:390px;margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.hero-bg{display:none}.hero-art{inset:-12px;filter:saturate(1.08) contrast(1.02)}
+.hero-shade{background:linear-gradient(90deg,#07101ee8 0%,#0d1734bf 32%,#1118316b 58%,#0a0d1a20 100%),linear-gradient(0deg,#090b18f5 0%,#090b1830 33%,transparent 70%)}
+.hero-copy{width:58%;padding:36px 0 38px max(5%,calc((100% - 1660px)/2));justify-content:flex-end}
+.tag{background:#080d1bd9;border-color:#ffffff36}.game-title{font-size:clamp(76px,9.5vw,140px);margin:0;color:#fff;text-shadow:-5px 0 #22d8ef,6px 8px #f52b9b,0 14px 24px #0009;-webkit-text-stroke:1px #fff;transform:skewX(-5deg)}
+.edition{font-size:clamp(19px,2.2vw,31px);text-shadow:-2px 0 #22d8ef,4px 5px #f52b9b,0 9px 15px #0009;-webkit-text-stroke:.4px #fff}
+.details{max-width:720px;margin-top:28px;gap:clamp(18px,3vw,42px);border-top-color:#ffffff4a}.vi-mark{display:none}
+.map-float-frame{right:max(5%,calc((100% - 1660px)/2));width:clamp(160px,17vw,270px);height:76%;border:1px solid #7b7ed35c;border-radius:14px;background:#11182b54;box-shadow:0 18px 44px #0009,0 0 20px #4b74ea2b}
+.install-strip,.launch-row,.logs-link,.welcome,.home-panels,.updates-panel{width:min(92%,1530px)}
+.install-strip{margin:2px auto 0;padding:10px 14px;border-color:#ffffff1c;border-radius:12px;background:linear-gradient(100deg,#101a2cee,#0b1122ee);box-shadow:0 7px 22px #0004}
+.launch-row{margin:14px auto 0;gap:12px}.status-card{border-color:#ffffff20;border-radius:15px;background:#11182ced;box-shadow:0 8px 24px #0005}.play-button{min-height:76px;border:1px solid #f2bd557d;border-radius:16px;background:linear-gradient(105deg,#338df4 0%,#7851ff 43%,#f14ba9 80%,#f8b746 100%);box-shadow:0 10px 32px #517eff55,inset 0 1px #ffffff66}
+.logs-link{margin:8px auto 0;text-align:right}.welcome{margin:7px auto 0;padding:0;border:0;background:transparent;box-shadow:none;color:#cbd8f0;text-align:left;font-size:14px}
+.home-panels{margin:12px auto 0;grid-template-columns:minmax(250px,420px) minmax(250px,1fr);gap:12px;align-items:stretch}.home-support-column{gap:8px}
+.home-panel{min-height:76px;padding:11px 13px;border-color:#ffffff20;border-radius:15px;background:linear-gradient(145deg,#121a2eee,#0c1122f5);box-shadow:0 7px 22px #0004}
+.trophy-summary-icon{border-color:#ffc84b48;background:linear-gradient(135deg,#20375c,#14182d)}
+.updates-panel{position:relative;inset:auto;height:auto;max-height:none;margin:14px auto 0;padding:13px 15px;border:1px solid #ffffff20;border-radius:16px;background:linear-gradient(115deg,#101a2cf5,#101326f5);box-shadow:0 10px 32px #0005}
+.updates-heading{margin-bottom:10px}.updates-heading .eyebrow{color:#ffd06a;font-size:10px;letter-spacing:1.5px}.updates-embed{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 8px;border:0;background:transparent;scroll-snap-type:x mandatory;scrollbar-width:thin;scrollbar-color:#8b68ce55 transparent}
+.update-preview-link{flex:0 0 clamp(240px,24vw,360px);height:clamp(180px,20vw,260px);overflow:hidden;border:1px solid #ffffff24;border-radius:12px;background:#090d18;scroll-snap-align:start;line-height:0}
+.updates-embed img{display:block;width:100%;height:100%;object-fit:contain;object-position:center;border-radius:11px;background:#080b13}
+.updates-embed .update-preview-link+.update-preview-link{margin:0;padding:0;border:1px solid #ffffff24}
+.tile-context-menu{border-color:#6685d577;background:linear-gradient(145deg,#17233cf7,#0c1124fa);box-shadow:0 14px 36px #000b,0 0 18px #398cff22}
+.tile-context-menu>button{background:#1a2842}.tile-context-menu>button:hover,.tile-context-menu>button:focus-visible{border-color:#ff69be;background:linear-gradient(90deg,#398cff65,#dc48b655,#e6aa4140)}
+@media(max-width:1100px){.topbar{gap:16px;padding:0 2%}.brand{min-width:auto}.brand-name{font-size:15px}.topbar nav{gap:13px}.topbar .current-track{max-width:210px;min-width:145px}.home-dock{width:96%;gap:9px}.dock-tile{width:82px;height:82px;flex-basis:82px}.hero-copy{padding-left:4%}.updates-panel,.home-panels,.install-strip,.launch-row,.logs-link,.welcome{width:94%}}
+@media(max-width:760px){.topbar{height:auto;min-height:64px;flex-wrap:wrap;padding:8px 12px;gap:8px}.topbar nav{height:42px;order:3;width:100%;justify-content:flex-start}.topbar .current-track{display:none}.topbar .right{margin-left:auto}.home-dock{margin-top:9px;overflow-x:auto;padding-bottom:24px}.dock-tile{width:68px;height:68px;flex-basis:68px}.hero{height:390px;min-height:350px}.hero-copy{width:72%;padding:20px 0 26px 4%}.game-title{font-size:clamp(58px,14vw,88px)}.edition{font-size:clamp(16px,4vw,23px)}.map-float-frame{right:3%;width:25%;height:63%;min-width:92px}.details{gap:11px;flex-wrap:wrap}.launch-row{gap:6px}.status-card{min-width:65px;padding:9px 7px}.status-card small{font-size:8px}.status-card strong{font-size:10px}.play-button{min-height:62px;font-size:17px}.home-panels{grid-template-columns:1fr}.update-preview-link{flex-basis:78vw;height:56vw;max-height:240px}}
+@media(prefers-reduced-motion:reduce){.hero-art{animation:none;opacity:.72}.map-float-frame{animation:none}}
+
+/* Full-screen console home: the supplied Vice City scenes are the canvas, while controls float above it. */
+#play{position:absolute;inset:0;overflow:hidden;padding:0;background:#07101f;isolation:isolate}
+.hero{position:absolute;inset:0;z-index:0;width:100%;height:100%;min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;overflow:hidden;background:#07101f}
+.hero-bg{display:none}.hero-art{inset:-2%;background-size:cover;background-position:center 44%;filter:saturate(1.07) contrast(1.03);will-change:opacity,transform}
+.hero-shade{background:linear-gradient(90deg,#06101ee8 0%,#08162bc2 27%,#0b1a3066 53%,#07101e12 100%),linear-gradient(0deg,#070b17fa 0%,#080e1eac 19%,transparent 53%),linear-gradient(180deg,#06101d99 0%,transparent 27%)}
+.home-dock{position:absolute;z-index:6;top:14px;left:3%;width:min(67%,1100px);margin:0;padding:6px 6px 27px;gap:12px;overflow:visible;align-items:flex-start}
+.dock-tile{position:relative;width:clamp(68px,5.1vw,98px);height:clamp(68px,5.1vw,98px);flex:0 0 clamp(68px,5.1vw,98px);padding:5px;border:1px solid #ffffff13;border-radius:15px;background:linear-gradient(145deg,#141a2ccc,#0b1121df);box-shadow:0 9px 25px #0007;overflow:visible;transition:transform .2s,border-color .2s,box-shadow .2s}
+.dock-tile>.dock-art,.dock-tile>img{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:10px;filter:none}.discord-dock img{border-radius:10px}
+.dock-tile>span:last-child:not(.dock-icon){position:absolute;top:calc(100% + 8px);left:50%;display:none;transform:translateX(-50%);font-size:clamp(12px,1vw,18px);font-weight:400;color:#fff;text-shadow:0 2px 9px #000;white-space:nowrap}
+.dock-tile.selected{transform:translateY(-2px) scale(1.11);border-color:#98cfffbb;background:#192a42;box-shadow:0 11px 30px #0008,0 0 16px #58aaff45}.dock-tile.selected>span:last-child:not(.dock-icon){display:block}
+.dock-lock{position:relative;align-self:flex-start;flex:0 0 31px;width:31px;height:34px;margin:14px 0 0 -7px;padding:0!important;border:1px solid #f4c45c55!important;border-radius:9px;background:#11192beF!important;color:#ffd36c!important;font-size:14px!important}
+.hero-copy{position:absolute;left:8.6%;top:47%;z-index:3;width:min(52%,760px);height:auto;padding:0;justify-content:flex-start;transform:translateY(-5%)}
+.tag{background:#080d1bd9;border-color:#ffffff38}.game-title{margin:0;font-size:clamp(68px,8vw,124px);color:#fff;-webkit-text-stroke:1px #fff;text-shadow:-5px 0 #22d8ef,6px 8px #f52b9b,0 14px 24px #0009;transform:skewX(-5deg)}
+.edition{margin-top:6px;font-size:clamp(19px,2vw,30px);color:#fff;-webkit-text-stroke:.4px #fff;text-shadow:-2px 0 #22d8ef,4px 5px #f52b9b,0 9px 15px #0009}
+.details{max-width:690px;margin:25px 0 0;gap:clamp(15px,2.5vw,38px);border-top-color:#ffffff58}
+.vi-mark{display:none}.map-float-frame{position:absolute;z-index:4;right:5.2%;top:47%;width:clamp(130px,14vw,245px);height:47%;max-height:420px;border:1px solid #9a83f156;border-radius:14px;background:#0b132751;box-shadow:0 18px 42px #0009,0 0 22px #4b74ea2d}
+.install-strip{position:absolute;z-index:5;left:8.6%;bottom:29%;width:min(49%,760px);margin:0;padding:9px 12px;border-color:#ffffff27;border-radius:12px;background:#0b1125c9;backdrop-filter:blur(12px);box-shadow:0 9px 25px #0007}
+.install-strip>div{min-width:155px}.install-strip strong{max-width:24vw}.install-strip>span{color:#d2d8e7}.install-strip small{color:#ffd06a}
+.launch-row{position:absolute;z-index:5;left:8.6%;bottom:20.4%;width:min(55%,840px);margin:0;gap:9px;align-items:stretch}
+.status-card{min-width:85px;padding:10px 12px;border-color:#ffffff28;border-radius:13px;background:#10172be0;backdrop-filter:blur(12px);box-shadow:0 8px 22px #0006}
+.countdown-card{min-width:130px!important}.countdown-card strong{font-size:10px!important}.play-button{min-height:64px;border-radius:14px;background:linear-gradient(105deg,#338df4 0%,#7851ff 43%,#f14ba9 80%,#f8b746 100%);box-shadow:0 10px 30px #517eff59,inset 0 1px #ffffff6b}
+.logs-link,.welcome{display:none}
+.home-panels{position:absolute;z-index:7;left:2.2%;bottom:18px;width:23%;margin:0;display:block}
+.home-support-column{display:grid;grid-template-columns:1fr;gap:8px}.home-panels .discord-profile{display:none}
+.home-panel{min-height:72px;padding:10px 12px;border-color:#ffffff24;border-radius:13px;background:linear-gradient(145deg,#1d2550f5,#151a3cf5);box-shadow:0 12px 30px #0008;backdrop-filter:blur(10px)}
+.trophy-summary{min-height:96px}.trophy-summary-icon{border-color:#99b7e855;background:#202956}.trophy-summary-icon img{width:47px;height:42px}.controller-panel{min-height:76px}.controller-icon{background:#15233a}
+.updates-panel{position:absolute;z-index:6;left:27%;right:2.2%;bottom:18px;width:auto;height:196px;max-height:none;margin:0;padding:10px 12px;border:0;border-radius:14px;background:linear-gradient(180deg,#0b12257a,#080e1cc9);box-shadow:none;backdrop-filter:blur(3px)}
+.updates-heading{margin:0 0 7px}.updates-heading .eyebrow{color:#f6d05d;font-size:9px;letter-spacing:1.5px}.updates-embed{height:calc(100% - 24px);display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:0 0 5px;border:0;background:transparent;scroll-snap-type:x mandatory;scrollbar-width:thin;scrollbar-color:#97a9d555 transparent}
+.update-preview-link{flex:0 0 clamp(220px,22vw,330px);height:100%;border:1px solid #ffffff22;border-radius:9px;background:#0b1020;scroll-snap-align:start;line-height:0}
+.updates-embed img{display:block;width:100%;height:100%;object-fit:contain;object-position:center;border-radius:8px;background:#080c18}.updates-embed .update-preview-link+.update-preview-link{margin:0;padding:0;border:1px solid #ffffff22}
+.topbar{height:68px;flex:0 0 68px;gap:32px;padding:0 4.4%;border:0;background:linear-gradient(180deg,#06101d91,#07101d26);backdrop-filter:none}
+.brand{min-width:0}.brand-mark{width:34px;height:34px;border-radius:8px;box-shadow:0 0 12px #d94bff38}.brand-name{font-size:17px}.topbar nav{gap:26px}.topbar .nav{font-size:14px;font-weight:500}.topbar .nav.active:after{height:2px}
+.topbar .current-track{max-width:250px;min-width:155px;margin-left:8px;padding-left:10px;border-left-color:#ffffff34}.topbar .right{gap:13px}.account-presence{order:2}.gear-button{order:1;border-color:transparent;border-radius:50%;background:transparent;font-size:21px}.account-presence-trigger{width:43px;height:43px;border-radius:5px;background:#8bc4e7;padding:2px;box-shadow:0 5px 18px #0005}.presence-avatar{width:37px;height:37px;border-radius:3px;background:#91c7e5;color:#fff}.presence-dot{right:-4px;bottom:-3px;border-color:#091222}.server{padding:8px 12px}.update-badge{height:32px}
+.profile-menu{z-index:20}
+footer{position:absolute;z-index:8;left:0;right:0;bottom:0;height:18px;padding:0 14px;background:linear-gradient(0deg,#050813b8,transparent);font-size:9px;pointer-events:none}
+@media(max-width:1100px){.home-dock{left:2%;width:78%;gap:9px}.dock-tile{width:clamp(62px,6.3vw,78px);height:clamp(62px,6.3vw,78px);flex-basis:clamp(62px,6.3vw,78px)}.hero-copy{left:6%;width:59%}.install-strip,.launch-row{left:6%}.launch-row{width:64%}.home-panels{left:1.5%;width:26%}.updates-panel{left:29%;right:1.5%}.update-preview-link{flex-basis:25vw}}
+@media(max-width:760px){#play{overflow-y:auto}.topbar{height:auto;min-height:64px;flex-wrap:wrap;padding:6px 12px;gap:6px}.topbar nav{height:40px;order:3;width:100%;justify-content:flex-start}.topbar .current-track{display:none}.topbar .right{margin-left:auto}.home-dock{top:8px;left:3%;width:92%;gap:8px;overflow-x:auto;padding-bottom:25px}.dock-tile{width:62px;height:62px;flex-basis:62px}.hero-copy{top:31%;left:5%;width:68%}.game-title{font-size:clamp(55px,12vw,82px)}.edition{font-size:clamp(15px,3.8vw,22px)}.details{margin-top:16px;gap:10px}.map-float-frame{right:3%;top:40%;width:25%;height:34%;min-width:82px}.install-strip{left:5%;bottom:32%;width:90%}.launch-row{left:5%;bottom:23%;width:90%;gap:5px}.status-card{min-width:54px;padding:7px 5px}.status-card small{font-size:7px}.status-card strong{font-size:9px}.countdown-card{min-width:100px!important}.play-button{min-height:52px;font-size:15px}.home-panels{left:4%;bottom:20px;width:43%}.home-panel{min-height:58px;padding:7px}.trophy-summary{min-height:70px}.updates-panel{left:50%;right:3%;bottom:20px;height:144px;padding:7px}.updates-heading{margin-bottom:4px}.updates-heading .eyebrow{font-size:7px}.updates-heading a{font-size:8px}.updates-embed{height:calc(100% - 18px)}.update-preview-link{flex-basis:70vw}.profile-info>small{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.hero-art{animation:none!important;opacity:.72!important;transform:none!important}}
+
 
 /* Nine provided scenes rotate as the launcher backdrop. */
 .hero-art{animation:artFade 36s ease-in-out infinite}
