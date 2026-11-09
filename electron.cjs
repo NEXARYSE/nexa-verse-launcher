@@ -9,10 +9,13 @@ const net = require('node:net');
 const crypto = require('node:crypto');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 let server, win, socialBridge, isQuitting=false;
+let activePatchRoot=null, activePatchVersion=0, activePatchStateFile=null;
 let socialState={status:'signedOut',friends:[]};
 let socialAuthFile;
 let discordRpcSocket=null, discordRpcBuffer=Buffer.alloc(0), discordRpcRetry=null, discordRpcReady=false, discordActivityEnabled=true;
 const DISCORD_APPLICATION_ID='1568756074692083925';
+const LIVE_PATCH_FILES=new Set(['app.js','index.html','social.css','style.css','ui-adjustments.js']);
+const LIVE_PATCH_PUBLIC_KEY=require('./live-patch-public.json');
 function isGtaViExecutable(value){return ['gta6.exe','gta vi.exe','gtavi.exe'].includes(path.basename(value).toLowerCase());}
 const launcherStartedAt=Math.floor(Date.now()/1000);
 
@@ -72,6 +75,45 @@ function publishSocial(data){
   win?.webContents.send('social-event',data);
 }
 function report(status, detail='') { win?.webContents.send('update-status',{status,detail}); }
+function livePatchServiceUrl(){try{return JSON.parse(fs.readFileSync(path.join(__dirname,'presence-service.json'),'utf8')).url}catch{return ''}}
+function restoreActivePatch(){
+  try{
+    const pointer=JSON.parse(fs.readFileSync(activePatchStateFile,'utf8'));
+    const root=path.join(path.dirname(activePatchStateFile),`v${Number(pointer.version)}`);
+    if(Number.isSafeInteger(pointer.version)&&pointer.version>0&&fs.existsSync(root)){activePatchVersion=pointer.version;activePatchRoot=root;}
+  }catch{}
+}
+async function checkForLivePatch(){
+  if(!app.isPackaged)return false;
+  const base=livePatchServiceUrl();if(!base)return false;
+  const response=await fetch(new URL('/api/live-patch/current',base),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+  if(!response.ok)throw new Error(`Live patch feed returned ${response.status}`);
+  const packet=await response.json(),manifest=packet.manifest;
+  if(!manifest||!Number.isSafeInteger(manifest.version)||manifest.version<=activePatchVersion)return false;
+  if(!Array.isArray(manifest.files)||manifest.files.length!==LIVE_PATCH_FILES.size)throw new Error('Live patch file list is incomplete');
+  const publicKey=crypto.createPublicKey({key:LIVE_PATCH_PUBLIC_KEY,format:'jwk'});
+  const signature=Buffer.from(packet.signature||'','base64');
+  if(signature.length!==64||!crypto.verify(null,Buffer.from(JSON.stringify(manifest)),publicKey,signature))throw new Error('Live patch signature is invalid');
+  const patchBase=path.join(app.getPath('userData'),'live-patches');
+  const stage=path.join(patchBase,`.stage-${manifest.version}-${crypto.randomUUID()}`);
+  const destination=path.join(patchBase,`v${manifest.version}`);
+  fs.mkdirSync(stage,{recursive:true});
+  try{
+    for(const file of manifest.files){
+      if(!LIVE_PATCH_FILES.has(file.path)||typeof file.content!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256||''))throw new Error('Live patch contains an unsupported file');
+      const data=Buffer.from(file.content,'utf8');
+      if(data.length>300_000||crypto.createHash('sha256').update(data).digest('hex')!==file.sha256)throw new Error(`Live patch integrity check failed for ${file.path}`);
+      fs.writeFileSync(path.join(stage,file.path),data,{flag:'wx'});
+    }
+    for(const name of LIVE_PATCH_FILES)if(!fs.existsSync(path.join(stage,name)))throw new Error(`Live patch is missing ${name}`);
+    fs.rmSync(destination,{recursive:true,force:true});
+    fs.renameSync(stage,destination);
+    const temp=activePatchStateFile+'.tmp';
+    fs.writeFileSync(temp,JSON.stringify({version:manifest.version}));fs.renameSync(temp,activePatchStateFile);
+    activePatchRoot=destination;activePatchVersion=manifest.version;
+    return true;
+  }catch(error){fs.rmSync(stage,{recursive:true,force:true});throw error}
+}
 function transientUpdateError(error){return /\b(?:408|429|500|502|503|504)\b|timed?\s*out|ECONN(?:RESET|REFUSED|ABORTED)|ENOTFOUND|EAI_AGAIN|network|socket hang up/i.test(String(error?.message||error||''));}
 let updateCheckInFlight=null;
 async function checkForUpdatesWithRetry(){
@@ -102,13 +144,15 @@ autoUpdater.on('error',e=>report(transientUpdateError(e)?'checking':'error',tran
 app.whenReady().then(async () => {
   if(app.isPackaged)autoUpdater.setFeedURL({provider:'generic',url:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'});
   const authFile=path.join(app.getPath('userData'),'discord-session.dat');
+  activePatchStateFile=path.join(app.getPath('userData'),'live-patches','active.json');
+  restoreActivePatch();
   socialAuthFile=path.join(app.getPath('userData'),'discord-social-session.dat');
   const storage={
     load(){try{if(!safeStorage.isEncryptionAvailable())return null;return JSON.parse(safeStorage.decryptString(Buffer.from(fs.readFileSync(authFile,'utf8'),'base64')))}catch{return null}},
     save(value){if(!safeStorage.isEncryptionAvailable())throw new Error('Windows secure storage is unavailable');fs.mkdirSync(path.dirname(authFile),{recursive:true});const temp=authFile+'.tmp';fs.writeFileSync(temp,safeStorage.encryptString(JSON.stringify(value)).toString('base64'));fs.renameSync(temp,authFile)},
     clear(){try{fs.rmSync(authFile,{force:true})}catch{}}
   };
-  server = await startServer(4317,storage);
+  server = await startServer(4317,storage,{getPatchRoot:()=>activePatchRoot});
   let trackedGameActive=false;
   ipcMain.handle('app-version',()=>app.getVersion());
   ipcMain.handle('game-running',()=>trackedGameActive);
@@ -185,6 +229,9 @@ app.whenReady().then(async () => {
   }
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.loadURL('http://127.0.0.1:4317');
+  setTimeout(()=>checkForLivePatch().then(changed=>{if(changed)win?.webContents.reload()}).catch(error=>console.warn(`Live UI patch check failed: ${error.message}`)),3500);
+  const livePatchTimer=setInterval(()=>checkForLivePatch().then(changed=>{if(changed)win?.webContents.reload()}).catch(error=>console.warn(`Live UI patch check failed: ${error.message}`)),5*60*1000);
+  livePatchTimer.unref?.();
   connectDiscordRpc();
   if(app.isPackaged) setTimeout(()=>checkForUpdatesWithRetry().then(result=>{if(result.status==='error')report('error',result.detail)}),2500);
 });

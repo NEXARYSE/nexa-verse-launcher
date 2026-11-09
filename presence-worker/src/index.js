@@ -1,6 +1,59 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/live-patch/current' && request.method === 'GET') {
+      const id = env.PRESENCE.idFromName('nexa-verse-live-patch-v1');
+      return env.PRESENCE.get(id).fetch('https://live-patch.internal/current');
+    }
+    if (url.pathname === '/api/live-patch/publish') {
+      if (request.method !== 'POST') return Response.json({ error: 'POST required' }, { status: 405 });
+      if (typeof env.LIVE_PATCH_ADMIN_TOKEN !== 'string' || env.LIVE_PATCH_ADMIN_TOKEN.length < 32 || typeof env.LIVE_PATCH_PRIVATE_JWK !== 'string') return Response.json({ error: 'Live patch publishing is not configured' }, { status: 503 });
+      if (!await constantTimeTokenMatch(request.headers.get('Authorization') || '', `Bearer ${env.LIVE_PATCH_ADMIN_TOKEN}`)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+      const allowed = ['app.js', 'index.html', 'social.css', 'style.css', 'ui-adjustments.js'];
+      if (!Number.isSafeInteger(payload.version) || payload.version < 1 || !payload.files || typeof payload.files !== 'object' || Array.isArray(payload.files) || Object.keys(payload.files).some(name => !allowed.includes(name)) || allowed.some(name => typeof payload.files[name] !== 'string')) return Response.json({ error: 'A patch must include the complete UI file set' }, { status: 400 });
+      const totalSize = allowed.reduce((sum, name) => sum + new TextEncoder().encode(payload.files[name]).length, 0);
+      if (totalSize > 600_000) return Response.json({ error: 'UI patch is too large' }, { status: 413 });
+      const files = [];
+      for (const name of allowed) {
+        const content = payload.files[name];
+        const hash = await sha256Hex(content);
+        files.push({ path: name, sha256: hash, content });
+      }
+      const manifest = { version: payload.version, files };
+      const signingKey = await crypto.subtle.importKey('jwk', JSON.parse(env.LIVE_PATCH_PRIVATE_JWK), { name: 'Ed25519' }, false, ['sign']);
+      const signature = await crypto.subtle.sign('Ed25519', signingKey, new TextEncoder().encode(JSON.stringify(manifest)));
+      const signedPatch = { manifest, signature: bytesToBase64(new Uint8Array(signature)) };
+      const id = env.PRESENCE.idFromName('nexa-verse-live-patch-v1');
+      const response = await env.PRESENCE.get(id).fetch('https://live-patch.internal/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signedPatch) });
+      return response;
+    }
+    if (url.pathname === '/api/leaderboard/admin') {
+      if (request.method !== 'POST') return Response.json({ error: 'POST required' }, { status: 405 });
+      if (typeof env.LEADERBOARD_ADMIN_TOKEN !== 'string' || env.LEADERBOARD_ADMIN_TOKEN.length < 32) return Response.json({ error: 'Leaderboard admin is not configured' }, { status: 503 });
+      const supplied = request.headers.get('Authorization') || '';
+      if (!await constantTimeTokenMatch(supplied, `Bearer ${env.LEADERBOARD_ADMIN_TOKEN}`)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+      if (!Array.isArray(payload.players) || payload.players.length > 100) return Response.json({ error: 'Provide up to 100 player records' }, { status: 400 });
+      const players = [];
+      const seen = new Set();
+      for (const item of payload.players) {
+        const username = String(item?.username || '').replace(/^@/, '').trim();
+        const key = username.toLowerCase();
+        const playtimeSeconds = Number(item?.playtimeSeconds);
+        const trophiesEarned = Number(item?.trophiesEarned);
+        const completionPercent = Number(item?.completionPercent);
+        if (!/^[a-zA-Z0-9_.]{1,32}$/.test(username) || seen.has(key) || !Number.isSafeInteger(playtimeSeconds) || playtimeSeconds < 0 || playtimeSeconds > 315360000 || !Number.isSafeInteger(trophiesEarned) || trophiesEarned < 0 || trophiesEarned > 55 || !Number.isFinite(completionPercent) || completionPercent < 0 || completionPercent > 100) return Response.json({ error: 'Invalid player stats' }, { status: 400 });
+        seen.add(key);
+        players.push({ username, playtimeSeconds, trophiesEarned, completionPercent: Math.floor(completionPercent) });
+      }
+      const id = env.PRESENCE.idFromName('nexa-verse-global-leaderboard-v1');
+      return env.PRESENCE.get(id).fetch('https://leaderboard.internal/leaderboard', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'adminUpsert', players }),
+      });
+    }
     if (url.pathname === '/api/leaderboard') {
       if (request.method !== 'POST') return Response.json({ error: 'POST required' }, { status: 405 });
       let payload;
@@ -76,6 +129,23 @@ async function sha256Hex(value) {
   return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+async function constantTimeTokenMatch(actual, expected) {
+  const [a, b] = await Promise.all([sha256Bytes(actual), sha256Bytes(expected)]);
+  let difference = 0;
+  for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+  return difference === 0;
+}
+
+async function sha256Bytes(value) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+}
+
 async function hmacSha256Hex(secret, value) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const bytes = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
@@ -87,17 +157,46 @@ export class PresenceCounter {
     this.state = state;
     this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS modpack_redemptions (code_hash TEXT PRIMARY KEY, user_hash TEXT NOT NULL UNIQUE)');
     this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS launcher_leaderboard (user_hash TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, playtime_seconds INTEGER NOT NULL DEFAULT 0, trophies_earned INTEGER NOT NULL DEFAULT 0, completion_percent INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)');
+    this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS leaderboard_overrides (username TEXT PRIMARY KEY COLLATE NOCASE, display_name TEXT NOT NULL, playtime_seconds INTEGER NOT NULL, trophies_earned INTEGER NOT NULL, completion_percent INTEGER NOT NULL, updated_at INTEGER NOT NULL)');
+    this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS live_patch (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), version INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === '/current' || new URL(request.url).pathname === '/publish') {
+      const sql = this.state.storage.sql;
+      if (new URL(request.url).pathname === '/current') {
+        const row = sql.exec('SELECT payload FROM live_patch WHERE singleton = 1').toArray()[0];
+        return new Response(row?.payload || JSON.stringify({ manifest: { version: 0, files: [] }, signature: '' }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+      }
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid patch payload' }, { status: 400 }); }
+      if (!Number.isSafeInteger(payload?.manifest?.version) || payload.manifest.version < 1 || !Array.isArray(payload.manifest.files) || payload.manifest.files.length !== 4 || !/^[A-Za-z0-9+/=]{80,120}$/.test(payload.signature || '')) return Response.json({ error: 'Invalid signed patch' }, { status: 400 });
+      const existing = sql.exec('SELECT version FROM live_patch WHERE singleton = 1').toArray()[0];
+      if (existing && payload.manifest.version <= existing.version) return Response.json({ error: 'Patch version must increase' }, { status: 409 });
+      const encoded = JSON.stringify(payload);
+      if (new TextEncoder().encode(encoded).length > 700_000) return Response.json({ error: 'Signed patch is too large' }, { status: 413 });
+      sql.exec('INSERT INTO live_patch (singleton, version, payload, updated_at) VALUES (1, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET version = excluded.version, payload = excluded.payload, updated_at = excluded.updated_at', payload.manifest.version, encoded, Date.now());
+      return Response.json({ ok: true, version: payload.manifest.version });
+    }
     if (new URL(request.url).pathname === '/leaderboard') {
       let payload;
       try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
-      if (!/^[a-f0-9]{64}$/.test(payload.userHash || '')) return Response.json({ error: 'Invalid account identifier' }, { status: 400 });
+      if (payload.action !== 'adminUpsert' && !/^[a-f0-9]{64}$/.test(payload.userHash || '')) return Response.json({ error: 'Invalid account identifier' }, { status: 400 });
       const sql = this.state.storage.sql;
       if (payload.action === 'list') {
-        const rows = sql.exec('SELECT username, display_name, playtime_seconds, trophies_earned, completion_percent, (trophies_earned * 100 + CAST(playtime_seconds / 3600 AS INTEGER)) AS score FROM launcher_leaderboard ORDER BY score DESC, trophies_earned DESC, playtime_seconds DESC, username COLLATE NOCASE ASC LIMIT 10').toArray();
-        return Response.json({ entries: rows.map((row, index) => ({ rank: index + 1, username: row.username, displayName: `@${row.username}`, name: row.display_name, playtimeSeconds: row.playtime_seconds, trophiesEarned: row.trophies_earned, completionPercent: row.completion_percent, score: row.score })) });
+        const rows = sql.exec('SELECT username, display_name, playtime_seconds, trophies_earned, completion_percent FROM launcher_leaderboard').toArray();
+        const merged = new Map(rows.map(row => [row.username.toLowerCase(), row]));
+        for (const row of sql.exec('SELECT username, display_name, playtime_seconds, trophies_earned, completion_percent FROM leaderboard_overrides').toArray()) merged.set(row.username.toLowerCase(), row);
+        const entries = [...merged.values()].map(row => ({ ...row, score: row.trophies_earned * 100 + Math.floor(row.playtime_seconds / 3600) }));
+        entries.sort((a, b) => b.score - a.score || b.trophies_earned - a.trophies_earned || b.playtime_seconds - a.playtime_seconds || a.username.localeCompare(b.username, undefined, { sensitivity: 'base' }));
+        return Response.json({ entries: entries.slice(0, 10).map((row, index) => ({ rank: index + 1, username: row.username, displayName: `@${row.username}`, name: row.display_name, playtimeSeconds: row.playtime_seconds, trophiesEarned: row.trophies_earned, completionPercent: row.completion_percent, score: row.score })) });
+      }
+      if (payload.action === 'adminUpsert') {
+        if (!Array.isArray(payload.players) || payload.players.length > 100 || payload.players.some(player => !/^[a-zA-Z0-9_.]{1,32}$/.test(player?.username || '') || !Number.isSafeInteger(player.playtimeSeconds) || player.playtimeSeconds < 0 || player.playtimeSeconds > 315360000 || !Number.isSafeInteger(player.trophiesEarned) || player.trophiesEarned < 0 || player.trophiesEarned > 55 || !Number.isSafeInteger(player.completionPercent) || player.completionPercent < 0 || player.completionPercent > 100)) return Response.json({ error: 'Invalid leaderboard overrides' }, { status: 400 });
+        this.state.storage.transactionSync(() => {
+          for (const player of payload.players) sql.exec('INSERT INTO leaderboard_overrides (username, display_name, playtime_seconds, trophies_earned, completion_percent, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(username) DO UPDATE SET display_name = excluded.display_name, playtime_seconds = excluded.playtime_seconds, trophies_earned = excluded.trophies_earned, completion_percent = excluded.completion_percent, updated_at = excluded.updated_at', player.username, `@${player.username}`, player.playtimeSeconds, player.trophiesEarned, player.completionPercent, Date.now());
+        });
+        return Response.json({ ok: true, updated: payload.players.length });
       }
       if (payload.action !== 'update' || !/^[a-zA-Z0-9_.]{1,32}$/.test(payload.username || '') || !Number.isSafeInteger(payload.playtimeSeconds) || payload.playtimeSeconds < 0 || payload.playtimeSeconds > 315360000 || !Number.isSafeInteger(payload.trophiesEarned) || payload.trophiesEarned < 0 || payload.trophiesEarned > 55 || !Number.isFinite(payload.completionPercent) || payload.completionPercent < 0 || payload.completionPercent > 100) return Response.json({ error: 'Invalid leaderboard update' }, { status: 400 });
       sql.exec('INSERT INTO launcher_leaderboard (user_hash, username, display_name, playtime_seconds, trophies_earned, completion_percent, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_hash) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, playtime_seconds = MAX(launcher_leaderboard.playtime_seconds, excluded.playtime_seconds), trophies_earned = MAX(launcher_leaderboard.trophies_earned, excluded.trophies_earned), completion_percent = MAX(launcher_leaderboard.completion_percent, excluded.completion_percent), updated_at = excluded.updated_at', payload.userHash, payload.username, payload.displayName, payload.playtimeSeconds, payload.trophiesEarned, Math.floor(payload.completionPercent), Date.now());

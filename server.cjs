@@ -93,7 +93,7 @@ async function refreshRoleMetadata(){
   return roleMetadataLoad;
 }
 function roleDetails(session){return (session.roleIds||[]).map(id=>{const meta=ROLE_METADATA[id]||{};const mappedName=meta.name||ROLE_NAMES[id];const name=mappedName||(id===GUILD_ID?'@everyone':'');const color=typeof meta.color==='string'&&/^#[0-9a-f]{6}$/i.test(meta.color)?meta.color:null;return {id,name,color,metadataAvailable:Boolean(mappedName||id===GUILD_ID)};});}
-function startServer(port=4317, storage={}) {
+function startServer(port=4317, storage={}, options={}) {
   const launcherHeartbeatId=crypto.randomUUID();
   let sharedPresenceSocket=null,sharedPresenceCount=null,sharedPresenceHeartbeat=null,sharedPresenceRetry=null,presenceEligible=false;
   const disconnectSharedPresence=()=>{
@@ -222,8 +222,18 @@ function startServer(port=4317, storage={}) {
         if(!member)return send(res,403,JSON.stringify({error:'Join the Nexa Verse server to access the launcher.'}));
         return send(res,200,JSON.stringify({ok:true,message:'Discord linked and Nexa Verse membership verified. Starting your linked GTA VI application.'}));
       }
-      const rel=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1)),file=path.resolve(ROOT,rel);
-      if(!file.startsWith(ROOT+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(res,404,'Not found','text/plain');
+      const rel=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1));
+      if(rel.includes('\\')||rel.split('/').some(part=>part==='..'))return send(res,404,'Not found','text/plain');
+      let file=path.resolve(ROOT,rel);
+      const patchRoot=options.getPatchRoot?.();
+      if(patchRoot&&['app.js','index.html','social.css','style.css'].includes(rel)){
+        const override=path.resolve(patchRoot,rel);
+        if(override.startsWith(path.resolve(patchRoot)+path.sep)&&fs.existsSync(override)&&fs.statSync(override).isFile())file=override;
+      }
+      const inApplication= file.startsWith(ROOT+path.sep);
+      const patchBase=patchRoot?path.resolve(patchRoot)+path.sep:null;
+      const inPatch=Boolean(patchBase&&file.startsWith(patchBase));
+      if((!inApplication&&!inPatch)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(res,404,'Not found','text/plain');
       res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream'});fs.createReadStream(file).pipe(res);
     } catch { return send(res,503,JSON.stringify({error:'Discord membership verification is temporarily unavailable.'})); }
   });

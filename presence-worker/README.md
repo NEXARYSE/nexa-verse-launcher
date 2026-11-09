@@ -15,3 +15,15 @@ The global counter is a best-effort online indicator, not an anti-cheat system. 
 
 The leaderboard stores a peppered HMAC of each linked Discord account ID, its current Discord username, cumulative launcher game-process playtime, trophy count, completion percentage, and last update time. It returns the top 10 to verified Nexa Verse members; launcher clients submit progress and refresh the list hourly. Scores are 100 points per trophy plus 1 point per full hour of game time. Playtime is reported by the desktop launcher while the linked GTA VI application process remains open; trophy values currently come from the launcher progress profile because the game does not yet expose a verified progress API. These client-reported values are for community ranking and are not cheat-proof.
 
+Leaderboard adjustments can be made server-side without publishing a launcher build. Set a private `LEADERBOARD_ADMIN_TOKEN` Worker secret and keep the same token in the ignored file `presence-worker/.wrangler-config/leaderboard-admin-token`. The owner can submit exact editable overrides with `node scripts/update-leaderboard.cjs <stats.json>` using this shape:
+
+```json
+{
+  "players": [
+    { "username": "playername", "playtimeSeconds": 21600, "trophiesEarned": 2, "completionPercent": 6 }
+  ]
+}
+```
+
+Overrides take effect on the next leaderboard refresh, do not require an app version change, and supersede that username's automatically submitted values until changed again. Keep the token private; it is not included in the launcher or repository.
+

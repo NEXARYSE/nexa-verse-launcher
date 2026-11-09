@@ -8,3 +8,7 @@ dist/
 .wrangler-config/
 *.obj
 NEXA VERSE LAUNCHER.exe
+# Local image-conversion scratch pages
+/tile-convert.html
+/tile-red-test.html
+/friends-tile-800.png
