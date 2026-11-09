@@ -2,11 +2,13 @@
   const $ = selector => document.querySelector(selector);
   const trigger = $('#presenceTrigger');
   const menu = $('#presenceMenu');
-  const modeSelect = $('#presenceSelect');
+  const modeOptions = $('#presenceOptions');
+  const profileStatusTrigger = $('#profile-status-trigger');
+  const profileStatusPopover = $('#profile-status-popover');
   const modeKey = 'nv_launcher_presence';
-  let mode = ['online', 'idle', 'offline'].includes(localStorage.getItem(modeKey))
+  let mode = ['online', 'idle', 'dnd', 'invisible'].includes(localStorage.getItem(modeKey))
     ? localStorage.getItem(modeKey)
-    : 'online';
+    : (localStorage.getItem(modeKey) === 'offline' ? 'invisible' : 'online');
 
   function renderProfile() {
     const label = $('#presenceLabel');
@@ -18,9 +20,11 @@
     const logoutAction = $('#profileLogout');
     const linked = !!sourceName && sourceName.textContent.trim() !== 'Discord not linked';
     if (label) label.textContent = sourceName?.textContent || 'Discord';
-    if (modeSelect) modeSelect.value = mode;
-    if (dot) dot.className = `presence-dot ${linked ? mode : 'offline'}`;
-    if (trigger) trigger.title = `${label?.textContent || 'Discord'} · ${mode === 'offline' ? 'Appear offline' : mode[0].toUpperCase() + mode.slice(1)}`;
+    const visibleMode=mode==='invisible'?'offline':mode;
+    if(dot)dot.className=`presence-dot ${linked?visibleMode:'offline'} ${mode==='dnd'?'dnd':''}`;
+    if(trigger)trigger.title=`${label?.textContent||'Discord'} · ${mode==='dnd'?'Do Not Disturb':mode==='invisible'?'Invisible':mode[0].toUpperCase()+mode.slice(1)}`;
+    document.querySelectorAll('[data-presence]').forEach(button=>{button.classList.toggle('active',button.dataset.presence===mode);button.setAttribute('aria-pressed',String(button.dataset.presence===mode))});
+    const pdot=$('#profile-page-status-dot');if(pdot)pdot.className=`presence-dot ${visibleMode} ${mode==='dnd'?'dnd':''}`;
     if (avatar) {
       avatar.replaceChildren();
       if (sourceAvatar?.src) {
@@ -46,12 +50,8 @@
     trigger.setAttribute('aria-expanded', String(open));
   });
 
-  modeSelect?.addEventListener('change', async () => {
-    mode = modeSelect.value;
-    localStorage.setItem(modeKey, mode);
-    await window.launcher?.setDiscordActivity(mode !== 'offline');
-    renderProfile();
-  });
+  document.querySelectorAll('[data-presence]').forEach(button=>button.addEventListener('click',async()=>{mode=button.dataset.presence;localStorage.setItem(modeKey,mode);await window.launcher?.setDiscordActivity(mode!=='invisible');window.syncProfileHeartbeat?.(true);renderProfile();menu?.classList.add('hidden');trigger?.setAttribute('aria-expanded','false');profileStatusPopover?.classList.add('hidden');profileStatusTrigger?.setAttribute('aria-expanded','false')}));
+  profileStatusTrigger?.addEventListener('click',()=>{const open=profileStatusPopover?.classList.toggle('hidden')===false;profileStatusTrigger.setAttribute('aria-expanded',String(open))});
 
   menu?.querySelectorAll('[data-profile-action]').forEach(button => {
     button.addEventListener('click', () => {
@@ -60,10 +60,11 @@
       trigger?.setAttribute('aria-expanded', 'false');
       if (action === 'logout') $('#accountBtn')?.click();
       else if (action === 'trophies') document.querySelector('.nav[data-page="trophies"]')?.click();
-      else document.querySelector('.nav[data-page="settings"]')?.click();
+      else if (action === 'profile') document.querySelector('.nav[data-page="profile"]')?.click();
     });
   });
 
+  document.querySelectorAll('.profile-tab[data-page]').forEach(button=>button.addEventListener('click',()=>document.querySelector(`.nav[data-page="${button.dataset.page}"]`)?.click()));
   $('#settingsGear')?.addEventListener('click', () => document.querySelector('.nav[data-page="settings"]')?.click());
   document.querySelector('.trophy-summary')?.addEventListener('click', () => document.querySelector('.nav[data-page="trophies"]')?.click());
   document.querySelector('.trophy-summary')?.addEventListener('keydown', event => {
@@ -168,5 +169,5 @@
     }).observe(trophyCount, { childList: true, subtree: true, characterData: true });
   }
   renderProfile();
-  window.launcher?.setDiscordActivity(mode !== 'offline');
+  window.launcher?.setDiscordActivity(mode !== 'invisible');
 })();

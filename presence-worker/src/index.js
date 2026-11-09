@@ -36,6 +36,12 @@ export default {
       if (!await constantTimeTokenMatch(supplied, `Bearer ${env.LEADERBOARD_ADMIN_TOKEN}`)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
       let payload;
       try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+      if (payload.action === 'reset') {
+        const id = env.PRESENCE.idFromName('nexa-verse-global-leaderboard-v1');
+        return env.PRESENCE.get(id).fetch('https://leaderboard.internal/leaderboard', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'adminReset' }),
+        });
+      }
       if (!Array.isArray(payload.players) || payload.players.length > 100) return Response.json({ error: 'Provide up to 100 player records' }, { status: 400 });
       const players = [];
       const seen = new Set();
@@ -53,6 +59,34 @@ export default {
       return env.PRESENCE.get(id).fetch('https://leaderboard.internal/leaderboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'adminUpsert', players }),
       });
+    }
+    if (url.pathname === '/api/profile') {
+      if (request.method !== 'POST') return Response.json({ error: 'POST required' }, { status: 405 });
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+      if (typeof payload.accessToken !== 'string' || payload.accessToken.length < 10 || payload.accessToken.length > 4096) return Response.json({ error: 'Discord authorization is required' }, { status: 401 });
+      const profileResponse = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bearer ${payload.accessToken}` }, signal: AbortSignal.timeout(10000) });
+      if (!profileResponse.ok) return Response.json({ error: 'Discord authorization expired; relink Discord and try again' }, { status: 401 });
+      const profile = await profileResponse.json();
+      if (!/^\d{17,20}$/.test(profile.id || '')) return Response.json({ error: 'Could not verify the Discord account' }, { status: 401 });
+      const memberResponse = await fetch(`https://discord.com/api/v10/users/@me/guilds/${GUILD_ID}/member`, { headers: { Authorization: `Bearer ${payload.accessToken}` }, signal: AbortSignal.timeout(10000) });
+      if (memberResponse.status === 404) return Response.json({ error: 'Join the Nexa Verse Discord server to use profiles' }, { status: 403 });
+      if (memberResponse.status === 403) return Response.json({ error: 'Refresh Discord permissions to verify Nexa Verse membership' }, { status: 403 });
+      if (!memberResponse.ok) return Response.json({ error: 'Could not verify Nexa Verse membership right now' }, { status: 503 });
+      if (typeof env.MODPACK_HASH_PEPPER !== 'string' || env.MODPACK_HASH_PEPPER.length < 32) return Response.json({ error: 'Profile storage is not configured' }, { status: 503 });
+      if (!['save', 'get', 'heartbeat'].includes(payload.action)) return Response.json({ error: 'Unknown profile action' }, { status: 400 });
+      if (payload.action === 'get' && !/^\d{17,20}$/.test(payload.targetUserId || '')) return Response.json({ error: 'Invalid profile identifier' }, { status: 400 });
+      if (payload.action === 'save' && (typeof payload.aboutMe !== 'string' || payload.aboutMe.length > 500)) return Response.json({ error: 'About Me must be 500 characters or fewer' }, { status: 400 });
+      const userHash = await hmacSha256Hex(env.MODPACK_HASH_PEPPER, payload.action === 'get' ? payload.targetUserId : profile.id);
+      const id = env.PRESENCE.idFromName('nexa-verse-global-profiles-v1');
+      const profilePayload = { action: payload.action, userHash };
+      if (payload.action === 'save') profilePayload.aboutMe = payload.aboutMe.trim();
+      if (payload.action === 'heartbeat') {
+        profilePayload.status = ['online', 'idle', 'dnd', 'invisible'].includes(payload.status) ? payload.status : 'online';
+        profilePayload.username = String(profile.username || '').slice(0, 32);
+        profilePayload.displayName = String(profile.global_name || profile.username || 'Nexa Verse player').slice(0, 64);
+      }
+      return env.PRESENCE.get(id).fetch('https://profile.internal/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profilePayload) });
     }
     if (url.pathname === '/api/leaderboard') {
       if (request.method !== 'POST') return Response.json({ error: 'POST required' }, { status: 405 });
@@ -159,9 +193,33 @@ export class PresenceCounter {
     this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS launcher_leaderboard (user_hash TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, playtime_seconds INTEGER NOT NULL DEFAULT 0, trophies_earned INTEGER NOT NULL DEFAULT 0, completion_percent INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)');
     this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS leaderboard_overrides (username TEXT PRIMARY KEY COLLATE NOCASE, display_name TEXT NOT NULL, playtime_seconds INTEGER NOT NULL, trophies_earned INTEGER NOT NULL, completion_percent INTEGER NOT NULL, updated_at INTEGER NOT NULL)');
     this.state.storage.sql.exec('CREATE TABLE IF NOT EXISTS live_patch (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), version INTEGER NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+    this.state.storage.sql.exec(`CREATE TABLE IF NOT EXISTS launcher_profiles (user_hash TEXT PRIMARY KEY, username TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT 'Nexa Verse player', about_me TEXT NOT NULL DEFAULT '', launcher_status TEXT NOT NULL DEFAULT 'offline', last_online INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`);
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === '/profile') {
+      let payload;
+      try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+      if (!/^[a-f0-9]{64}$/.test(payload.userHash || '') || !['save', 'get', 'heartbeat'].includes(payload.action)) return Response.json({ error: 'Invalid profile request' }, { status: 400 });
+      const sql = this.state.storage.sql;
+      const now = Date.now();
+      if (payload.action === 'save') {
+        if (typeof payload.aboutMe !== 'string' || payload.aboutMe.length > 500) return Response.json({ error: 'About Me must be 500 characters or fewer' }, { status: 400 });
+        sql.exec('INSERT INTO launcher_profiles (user_hash, about_me, last_online, updated_at) VALUES (?, ?, 0, ?) ON CONFLICT(user_hash) DO UPDATE SET about_me = excluded.about_me, updated_at = excluded.updated_at', payload.userHash, payload.aboutMe.trim(), now);
+        return Response.json({ ok: true });
+      }
+      if (payload.action === 'heartbeat') {
+        const status = ['online', 'idle', 'dnd', 'invisible'].includes(payload.status) ? payload.status : 'online';
+        const username = String(payload.username || '').slice(0, 32);
+        const displayName = String(payload.displayName || username || 'Nexa Verse player').slice(0, 64);
+        const lastOnline = status === 'invisible' ? 0 : now;
+        sql.exec('INSERT INTO launcher_profiles (user_hash, username, display_name, launcher_status, last_online, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_hash) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, launcher_status = excluded.launcher_status, last_online = CASE WHEN excluded.launcher_status = \'invisible\' THEN launcher_profiles.last_online ELSE excluded.last_online END, updated_at = excluded.updated_at', payload.userHash, username, displayName, status, lastOnline, now);
+        const saved = sql.exec('SELECT last_online FROM launcher_profiles WHERE user_hash = ? LIMIT 1', payload.userHash).toArray()[0];
+        return Response.json({ ok: true, lastOnline: Number(saved?.last_online || 0) });
+      }
+      const row = sql.exec('SELECT username, display_name, about_me, launcher_status, last_online FROM launcher_profiles WHERE user_hash = ? LIMIT 1', payload.userHash).toArray()[0];
+      return Response.json({ username: row?.username || '', displayName: row?.display_name || '', aboutMe: row?.about_me || '', launcherStatus: row?.launcher_status || 'offline', lastOnline: Number(row?.last_online || 0) });
+    }
     if (new URL(request.url).pathname === '/current' || new URL(request.url).pathname === '/publish') {
       const sql = this.state.storage.sql;
       if (new URL(request.url).pathname === '/current') {
@@ -191,7 +249,12 @@ export class PresenceCounter {
         entries.sort((a, b) => b.score - a.score || b.trophies_earned - a.trophies_earned || b.playtime_seconds - a.playtime_seconds || a.username.localeCompare(b.username, undefined, { sensitivity: 'base' }));
         return Response.json({ entries: entries.slice(0, 10).map((row, index) => ({ rank: index + 1, username: row.username, displayName: `@${row.username}`, name: row.display_name, playtimeSeconds: row.playtime_seconds, trophiesEarned: row.trophies_earned, completionPercent: row.completion_percent, score: row.score })) });
       }
-      if (payload.action === 'adminUpsert') {
+        if (payload.action === 'adminReset') {
+          sql.exec('UPDATE launcher_leaderboard SET playtime_seconds = 0, trophies_earned = 0, completion_percent = 0, updated_at = ?', Date.now());
+          sql.exec('UPDATE leaderboard_overrides SET playtime_seconds = 0, trophies_earned = 0, completion_percent = 0, updated_at = ?', Date.now());
+          return Response.json({ reset: true });
+        }
+        if (payload.action === 'adminUpsert') {
         if (!Array.isArray(payload.players) || payload.players.length > 100 || payload.players.some(player => !/^[a-zA-Z0-9_.]{1,32}$/.test(player?.username || '') || !Number.isSafeInteger(player.playtimeSeconds) || player.playtimeSeconds < 0 || player.playtimeSeconds > 315360000 || !Number.isSafeInteger(player.trophiesEarned) || player.trophiesEarned < 0 || player.trophiesEarned > 55 || !Number.isSafeInteger(player.completionPercent) || player.completionPercent < 0 || player.completionPercent > 100)) return Response.json({ error: 'Invalid leaderboard overrides' }, { status: 400 });
         this.state.storage.transactionSync(() => {
           for (const player of payload.players) sql.exec('INSERT INTO leaderboard_overrides (username, display_name, playtime_seconds, trophies_earned, completion_percent, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(username) DO UPDATE SET display_name = excluded.display_name, playtime_seconds = excluded.playtime_seconds, trophies_earned = excluded.trophies_earned, completion_percent = excluded.completion_percent, updated_at = excluded.updated_at', player.username, `@${player.username}`, player.playtimeSeconds, player.trophiesEarned, player.completionPercent, Date.now());
@@ -199,7 +262,7 @@ export class PresenceCounter {
         return Response.json({ ok: true, updated: payload.players.length });
       }
       if (payload.action !== 'update' || !/^[a-zA-Z0-9_.]{1,32}$/.test(payload.username || '') || !Number.isSafeInteger(payload.playtimeSeconds) || payload.playtimeSeconds < 0 || payload.playtimeSeconds > 315360000 || !Number.isSafeInteger(payload.trophiesEarned) || payload.trophiesEarned < 0 || payload.trophiesEarned > 55 || !Number.isFinite(payload.completionPercent) || payload.completionPercent < 0 || payload.completionPercent > 100) return Response.json({ error: 'Invalid leaderboard update' }, { status: 400 });
-      sql.exec('INSERT INTO launcher_leaderboard (user_hash, username, display_name, playtime_seconds, trophies_earned, completion_percent, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_hash) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, playtime_seconds = MAX(launcher_leaderboard.playtime_seconds, excluded.playtime_seconds), trophies_earned = MAX(launcher_leaderboard.trophies_earned, excluded.trophies_earned), completion_percent = MAX(launcher_leaderboard.completion_percent, excluded.completion_percent), updated_at = excluded.updated_at', payload.userHash, payload.username, payload.displayName, payload.playtimeSeconds, payload.trophiesEarned, Math.floor(payload.completionPercent), Date.now());
+      sql.exec('INSERT INTO launcher_leaderboard (user_hash, username, display_name, playtime_seconds, trophies_earned, completion_percent, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_hash) DO UPDATE SET username = excluded.username, display_name = excluded.display_name, playtime_seconds = excluded.playtime_seconds, trophies_earned = excluded.trophies_earned, completion_percent = excluded.completion_percent, updated_at = excluded.updated_at', payload.userHash, payload.username, payload.displayName, payload.playtimeSeconds, payload.trophiesEarned, Math.floor(payload.completionPercent), Date.now());
       return Response.json({ ok: true });
     }
     if (new URL(request.url).pathname === '/redeem') {
