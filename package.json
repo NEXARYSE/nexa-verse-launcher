@@ -23,7 +23,6 @@
   "build": {
     "appId": "com.nexaverse.launcher",
     "productName": "NEXAVERSE LAUNCHER",
-    "forceCodeSigning": true,
     "electronDist": "node_modules/electron/dist",
     "files": [
       "**/*",
@@ -69,3 +68,4 @@
     ]
   }
 }
+
