@@ -170,7 +170,7 @@ export class PresenceCounter {
       }
       let payload;
       try { payload = await request.json(); } catch { return Response.json({ error: 'Invalid patch payload' }, { status: 400 }); }
-      if (!Number.isSafeInteger(payload?.manifest?.version) || payload.manifest.version < 1 || !Array.isArray(payload.manifest.files) || payload.manifest.files.length !== 4 || !/^[A-Za-z0-9+/=]{80,120}$/.test(payload.signature || '')) return Response.json({ error: 'Invalid signed patch' }, { status: 400 });
+      if (!Number.isSafeInteger(payload?.manifest?.version) || payload.manifest.version < 1 || !Array.isArray(payload.manifest.files) || payload.manifest.files.length !== 5 || !/^[A-Za-z0-9+/=]{80,120}$/.test(payload.signature || '')) return Response.json({ error: 'Invalid signed patch' }, { status: 400 });
       const existing = sql.exec('SELECT version FROM live_patch WHERE singleton = 1').toArray()[0];
       if (existing && payload.manifest.version <= existing.version) return Response.json({ error: 'Patch version must increase' }, { status: 409 });
       const encoded = JSON.stringify(payload);

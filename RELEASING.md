@@ -1,6 +1,6 @@
 # Releasing launcher updates
 
-The launcher uses Electron Updater with the GitHub Releases provider. Releases are served over HTTPS, and installed copies check for a newer version when they start. Downloads happen in the background and the NSIS updater applies the package when the user restarts or exits the launcher.
+The launcher is distributed as a single portable Windows executable; it does not install itself. Signed UI patches are checked in the background and applied in place while the launcher is open. UI changes can update without a full executable download. Changes to Electron's native runtime still require replacing the portable executable.
 
 ## One-time repository setup
 
@@ -19,8 +19,8 @@ The release workflow uses GitHub Actions' `GITHUB_TOKEN`; no long-lived publishi
    git push origin v0.3.9
    ```
 
-The Windows workflow builds the NSIS installer and publishes the installer, `latest.yml`, and block map to a GitHub Release. Once the release is published, installed launchers download it automatically. Keep each release public; drafts are not visible to the updater.
+The Windows workflow builds one portable executable and publishes it to a GitHub Release. Keep each release public so users can download the file without credentials.
 
 ## First install
 
-Portable self-extracting builds cannot use Electron Updater. Users need to install the NSIS build once to enable automatic updates. After that, they do not have to manually download each new launcher build.
+The first portable release requires one download. Future UI patches are applied automatically by the launcher while it is running. Electron/runtime changes require a replacement portable executable.

@@ -226,7 +226,7 @@ function startServer(port=4317, storage={}, options={}) {
       if(rel.includes('\\')||rel.split('/').some(part=>part==='..'))return send(res,404,'Not found','text/plain');
       let file=path.resolve(ROOT,rel);
       const patchRoot=options.getPatchRoot?.();
-      if(patchRoot&&['app.js','index.html','social.css','style.css'].includes(rel)){
+      if(patchRoot&&['app.js','index.html','social.css','style.css','ui-adjustments.js'].includes(rel)){
         const override=path.resolve(patchRoot,rel);
         if(override.startsWith(path.resolve(patchRoot)+path.sep)&&fs.existsSync(override)&&fs.statSync(override).isFile())file=override;
       }

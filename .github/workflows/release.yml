@@ -1,6 +1,6 @@
 name: Build and publish launcher updates
 
-# v0.5.22 release build for the updated controller navigation and countdown.
+# Build one no-install executable; interface changes continue through live patches.
 on:
   push:
     branches:
@@ -47,12 +47,12 @@ jobs:
       - name: Restore binary build assets
         run: node scripts/restore-build-assets.cjs
 
-      - name: Build and publish the Windows installer and update metadata
+      - name: Build and publish the portable Windows launcher
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
           for ($attempt = 1; $attempt -le 3; $attempt++) {
-            pnpm exec electron-builder --win nsis --x64 --publish always
+            pnpm exec electron-builder --win portable --x64 --publish always
             if ($LASTEXITCODE -eq 0) { exit 0 }
             if ($attempt -lt 3) {
               Write-Host "Build failed (attempt $attempt); retrying after a short delay."

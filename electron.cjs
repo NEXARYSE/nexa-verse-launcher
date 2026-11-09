@@ -9,6 +9,7 @@ const net = require('node:net');
 const crypto = require('node:crypto');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 let server, win, socialBridge, isQuitting=false;
+const isPortableBuild=Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
 let activePatchRoot=null, activePatchVersion=0, activePatchStateFile=null;
 let socialState={status:'signedOut',friends:[]};
 let socialAuthFile;
@@ -85,10 +86,12 @@ function restoreActivePatch(){
 }
 async function checkForLivePatch(){
   if(!app.isPackaged)return false;
-  const base=livePatchServiceUrl();if(!base)return false;
-  const response=await fetch(new URL('/api/live-patch/current',base),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw new Error(`Live patch feed returned ${response.status}`);
-  const packet=await response.json(),manifest=packet.manifest;
+  const base=livePatchServiceUrl();
+  const feeds=[base?new URL('/api/live-patch/current',base).toString():null,'https://raw.githubusercontent.com/NEXARYSE/nexa-verse-launcher/main/live-patch.json'].filter(Boolean);
+  let packet=null,lastError=null;
+  for(const feed of feeds){try{const response=await fetch(feed,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});if(!response.ok){lastError=new Error(`Live patch feed returned ${response.status}`);continue;}packet=await response.json();break;}catch(error){lastError=error;}}
+  if(!packet)throw lastError||new Error('Live patch feeds are unavailable');
+  const manifest=packet.manifest;
   if(!manifest||!Number.isSafeInteger(manifest.version)||manifest.version<=activePatchVersion)return false;
   if(!Array.isArray(manifest.files)||manifest.files.length!==LIVE_PATCH_FILES.size)throw new Error('Live patch file list is incomplete');
   const publicKey=crypto.createPublicKey({key:LIVE_PATCH_PUBLIC_KEY,format:'jwk'});
@@ -117,8 +120,12 @@ async function checkForLivePatch(){
 function transientUpdateError(error){return /\b(?:408|429|500|502|503|504)\b|timed?\s*out|ECONN(?:RESET|REFUSED|ABORTED)|ENOTFOUND|EAI_AGAIN|network|socket hang up/i.test(String(error?.message||error||''));}
 let updateCheckInFlight=null;
 async function checkForUpdatesWithRetry(){
-  if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the installed launcher build.'};
+  if(!app.isPackaged)return {status:'dev',detail:'Updates are checked in the launcher build.'};
   if(updateCheckInFlight)return updateCheckInFlight;
+  if(isPortableBuild){
+    updateCheckInFlight=(async()=>{try{const changed=await checkForLivePatch();if(changed){report('current','Live patch applied.');win?.webContents.reload();return {status:'current',detail:'Live patch applied.'};}return {status:'current',detail:'Launcher is up to date.'};}catch(error){return {status:'error',detail:error.message||'Live patch check failed.'};}})();
+    try{return await updateCheckInFlight;}finally{updateCheckInFlight=null;}
+  }
   updateCheckInFlight=(async()=>{
     for(let attempt=0;attempt<3;attempt++){
       try{await autoUpdater.checkForUpdates();return {status:'checking',detail:'Checking for launcher updates…'};}
@@ -142,7 +149,7 @@ autoUpdater.on('download-progress',p=>report('downloading',`Downloading update �
 autoUpdater.on('update-downloaded',info=>report('ready',`Version ${info.version} is downloaded and ready to install.`));
 autoUpdater.on('error',e=>report(transientUpdateError(e)?'checking':'error',transientUpdateError(e)?'The update service did not respond. Retrying…':e.message || 'Update check failed.'));
 app.whenReady().then(async () => {
-  if(app.isPackaged)autoUpdater.setFeedURL({provider:'generic',url:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'});
+  if(app.isPackaged&&!isPortableBuild)autoUpdater.setFeedURL({provider:'generic',url:'https://github.com/NEXARYSE/nexa-verse-launcher/releases/latest/download/'});
   const authFile=path.join(app.getPath('userData'),'discord-session.dat');
   activePatchStateFile=path.join(app.getPath('userData'),'live-patches','active.json');
   restoreActivePatch();
@@ -201,7 +208,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('open-external', async (_, value) => { const url=new URL(value); if(url.protocol!=='https:'||url.hostname!=='discord.com')throw new Error('Only Discord authorization links can be opened.'); return shell.openExternal(url.toString()); });
   ipcMain.handle('check-updates',()=>checkForUpdatesWithRetry());
-  ipcMain.on('install-update',()=>autoUpdater.quitAndInstall());
+  ipcMain.on('install-update',()=>{if(!isPortableBuild)autoUpdater.quitAndInstall()});
   const socialExe=app.isPackaged?path.join(process.resourcesPath,'native','social-bridge.exe'):path.join(__dirname,'native','social-bridge.exe');
   if(fs.existsSync(socialExe)){
     socialBridge=spawn(socialExe,[],{cwd:path.dirname(socialExe),windowsHide:true,stdio:['pipe','pipe','pipe']});
